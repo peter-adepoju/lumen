@@ -96,10 +96,10 @@ export function Segmented<T extends string | number>({ value, options, onChange,
 
 export function PageTitle({ title, sub, right }: { title: string; sub?: string; right?: ReactNode }) {
   return (
-    <header className="flex items-start justify-between gap-4 pt-3">
+    <header className="flex items-start justify-between gap-4 pt-3 lg:pt-0">
       <div>
-        <h1 className="text-[34px] leading-[1.1]">{title}</h1>
-        {sub && <p className="mt-1 text-muted">{sub}</p>}
+        <h1 className="text-[34px] leading-[1.1] lg:text-[52px] lg:leading-[1.05]">{title}</h1>
+        {sub && <p className="mt-1 text-muted lg:mt-2 lg:text-[16px]">{sub}</p>}
       </div>
       {right}
     </header>
@@ -109,7 +109,7 @@ export function PageTitle({ title, sub, right }: { title: string; sub?: string; 
 export function SectionTitle({ children, right }: { children: ReactNode; right?: ReactNode }) {
   return (
     <div className="mt-3 flex items-baseline justify-between gap-3 px-0.5">
-      <h2 className="text-[20px]">{children}</h2>
+      <h2 className="text-[20px] lg:text-[22px]">{children}</h2>
       {right && <span className="text-[12.5px] text-muted">{right}</span>}
     </div>
   );

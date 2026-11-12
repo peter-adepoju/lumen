@@ -36,6 +36,8 @@ export default function You() {
   return (
     <>
       <PageTitle title="You" sub="Your tools, your areas and your settings." />
+      <div className="flex flex-col gap-3.5 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6">
+      <div className="flex flex-col gap-3.5 lg:gap-6">
 
       <Card className="flex flex-col">
         <span className="eyebrow mb-1">Your tools</span>
@@ -84,6 +86,8 @@ export default function You() {
         <button className="mt-3 self-start text-[12.5px] text-muted underline underline-offset-4" onClick={() => router.push("/setup?step=2")}>Run setup again</button>
       </Card>
 
+      </div>
+      <div className="flex flex-col gap-3.5 lg:gap-6">
       <Card className="flex flex-col gap-1">
         <span className="eyebrow mb-1">Your day</span>
         <div className="flex flex-wrap items-center justify-between gap-2 py-1.5"><span>Session length</span>
@@ -134,6 +138,8 @@ export default function You() {
         </div>
         {confirmClear && <p className="text-[12.5px] text-muted">This removes Lumen from this device only. Anything already synced stays in your Drive. <button className="underline underline-offset-4" onClick={() => setConfirmClear(false)}>Keep it</button></p>}
       </Card>
+      </div>
+      </div>
     </>
   );
 }

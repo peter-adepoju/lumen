@@ -9,6 +9,7 @@ import { KeyForm } from "./key-form";
 import { Button, Card, cn, Pill, Segmented } from "./ui";
 
 const STEPS = 6;
+const STEP_NAMES = ["Your Google account", "Your free AI", "What to work on", "Your goal", "How you learn", "Your plan"];
 const GOAL_HINTS = ["Get promoted", "Change careers", "Pass an exam", "Move abroad", "Start a business", "Just grow"];
 const GOOGLE_PROBLEMS: Record<string, string> = {
   declined: "Google sign-in was cancelled. You can try again, or use Lumen on this device only for now.",
@@ -68,8 +69,27 @@ function SetupFlow() {
   const customs = picks.filter(a => !AREA_LIBRARY.some(([, , l]) => l.includes(a.name)));
 
   return (
-    <main className="mx-auto flex max-w-[460px] flex-col gap-6 px-4 pb-16 pt-3 [padding-left:max(16px,env(safe-area-inset-left))] [padding-right:max(16px,env(safe-area-inset-right))]">
-      <div className="sticky top-0 z-10 flex items-center justify-between gap-4 bg-bg py-3">
+    <div className="lg:mx-auto lg:grid lg:min-h-dvh lg:max-w-[1160px] lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-20 lg:px-8">
+    {/* Web: a side panel with the steps. Phones see the compact progress bar instead. */}
+    <aside className="hidden lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:justify-between lg:py-12">
+      <div className="flex flex-col gap-10">
+        <span className="flex items-center gap-2.5"><span className="orb size-6" aria-hidden /><span className="font-display text-[26px] font-semibold leading-none">Lumen</span></span>
+        <ol className="flex flex-col gap-1">
+          {STEP_NAMES.map((n, i) => (
+            <li key={n}>
+              <button onClick={() => i < step && go(i)} disabled={i >= step}
+                className={cn("flex w-full items-center gap-3 rounded-[10px] px-3 py-2 text-left text-[14.5px] transition", i === step ? "bg-surface font-medium text-fg" : i < step ? "text-fg hover:bg-surface" : "text-muted")}>
+                <span className={cn("grid size-6 shrink-0 place-items-center rounded-full border text-[12px]", i < step ? "border-gold bg-gold text-on-primary" : i === step ? "border-fg" : "border-border")}>{i < step ? "✓" : i + 1}</span>
+                {n}
+              </button>
+            </li>
+          ))}
+        </ol>
+      </div>
+      <p className="text-[13px] text-muted">Your data lives in your own Google Drive, and the AI runs on your own free Gemini key. Everything here can be changed later.</p>
+    </aside>
+    <main className="mx-auto flex w-full max-w-[460px] flex-col gap-6 px-4 pb-16 pt-3 [padding-left:max(16px,env(safe-area-inset-left))] [padding-right:max(16px,env(safe-area-inset-right))] lg:mx-0 lg:max-w-[600px] lg:gap-7 lg:px-0 lg:py-14">
+      <div className="sticky top-0 z-10 flex items-center justify-between gap-4 bg-bg py-3 lg:hidden">
         <span className="font-display text-[22px] font-semibold">Lumen</span>
         <div className="flex max-w-[180px] flex-1 gap-1" aria-label={`Step ${step + 1} of ${STEPS}`}>
           {Array.from({ length: STEPS }, (_, i) => <span key={i} className={cn("h-1 flex-1 rounded-full", i <= step ? "bg-gold" : "bg-surface-2")} />)}
@@ -208,13 +228,14 @@ function SetupFlow() {
         </>
       )}
 
-      <p className="text-center text-[12.5px] text-muted">Step {step + 1} of {STEPS}</p>
+      <p className="text-center text-[12.5px] text-muted lg:text-left">Step {step + 1} of {STEPS}{step > 0 && <> · <button className="hidden underline underline-offset-4 lg:inline" onClick={() => go(step - 1)}>Back</button></>}</p>
     </main>
+    </div>
   );
 }
 
 function Intro({ title, text }: { title: string; text: string }) {
-  return <div className="flex flex-col gap-1.5"><h1 className="text-[32px] leading-[1.12]">{title}</h1><p className="text-muted">{text}</p></div>;
+  return <div className="flex flex-col gap-1.5 lg:gap-3"><h1 className="text-[32px] leading-[1.12] lg:text-[48px] lg:leading-[1.05]">{title}</h1><p className="text-muted lg:text-[16px]">{text}</p></div>;
 }
 function KV({ k, v }: { k: string; v: string }) {
   return <div className="grid grid-cols-[110px_1fr] gap-3 border-t border-border py-2 text-[14px] first:border-t-0"><span className="text-muted">{k}</span><span>{v}</span></div>;
