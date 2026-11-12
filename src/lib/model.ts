@@ -86,6 +86,20 @@ export interface ReadingState {
 }
 export type ReaderSettings = Record<string, string | number | boolean>;
 
+/* ---------- Practice ---------- */
+export type Grade = "again" | "hard" | "good" | "easy";
+/** A flashcard with its spaced-repetition schedule. `due` is a day like "2026-11-12". */
+export interface Card { id: string; area: string; front: string; back: string; source?: string; due: string; interval: number; ease: number; reps: number; lapses: number; created: number }
+export type DrillKind = "digit-span" | "odd-one-out" | "quiz";
+export interface DrillScore { kind: DrillKind; area?: string; score: number; out?: number; day: string; at: number }
+
+/* ---------- News and Unwind ---------- */
+export type NewsStatus = "Confirmed" | "Reported" | "Rumour" | "Fixture" | "Research";
+export interface NewsItem { id: string; topic: string; title: string; summary: string; status: NewsStatus; source: string; url: string; date?: string }
+export interface NewsSet { topic: string; day: string; items: NewsItem[]; at: number }
+export interface UnwindPick { id: string; title: string; kind: "series" | "film" | "documentary"; year?: string; why: string; area?: string; where?: string; url: string }
+export interface UnwindSet { week: string; items: UnwindPick[]; at: number }
+
 /** Every document Lumen stores, by name. Each is one JSON file in the user's Lumen folder. */
 export interface Docs {
   profile: Profile;
@@ -100,6 +114,11 @@ export interface Docs {
   library: LibraryEntry[];
   reading: Record<string, ReadingState>;
   readerSettings: ReaderSettings;
+  cards: Card[];
+  drills: DrillScore[];
+  news: NewsSet[];
+  newsSources: Record<string, string[]>;
+  unwind: UnwindSet[];
 }
 export type DocName = keyof Docs;
 

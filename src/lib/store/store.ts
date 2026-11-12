@@ -11,7 +11,7 @@ import { isEnvelope, pick, wrap, type Envelope } from "./merge";
 export type Mode = "google" | "device";
 export type SyncState = "device" | "syncing" | "synced" | "offline" | "reconnect" | "error";
 
-const DOCS: DocName[] = ["profile", "ai", "blocked", "added", "picks", "feedback", "progress", "journal", "stats", "library", "reading", "readerSettings"];
+const DOCS: DocName[] = ["profile", "ai", "blocked", "added", "picks", "feedback", "progress", "journal", "stats", "library", "reading", "readerSettings", "cards", "drills", "news", "newsSources", "unwind"];
 const file = (n: DocName) => `${n}.json`;
 
 let token: { value: string; expiresAt: number } | null = null;

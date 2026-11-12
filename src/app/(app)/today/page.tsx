@@ -9,6 +9,9 @@ import { today } from "@/lib/recs";
 import { Card, Chip, cn, Pill, SectionTitle } from "@/components/ui";
 import { SyncDot } from "@/components/sync-dot";
 import { TodaysReading } from "@/components/books";
+import { NewsBrief } from "@/components/news";
+import { UnwindList } from "@/components/unwind";
+import { unwindTime } from "@/lib/practice-ai";
 
 export default function Today() {
   const s = useStore();
@@ -129,7 +132,14 @@ export default function Today() {
           {news.length > 0 && (
             <>
               <SectionTitle right="Trusted sources only">Your news</SectionTitle>
-              <Card><p className="text-[14px]">Following {news.map(n => n.name).join(", ")}.</p><p className="text-[13px] text-muted">Your daily brief arrives in a later update.</p></Card>
+              <NewsBrief topics={news} />
+            </>
+          )}
+
+          {unwindTime(now, streak) && (
+            <>
+              <SectionTitle right={<Link href="/unwind" className="underline underline-offset-4">Unwind</Link>}>Time off</SectionTitle>
+              <UnwindList compact />
             </>
           )}
         </aside>

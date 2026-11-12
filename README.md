@@ -24,7 +24,10 @@ Lumen runs on each person's own tools:
 | Library: shelves (currently reading, reserve, finished), upload EPUB and PDF you own, search and download free classics from Project Gutenberg, all highlights and notes in one place | Done |
 | Reader: real pagination, two-page spread on wide screens, 3D page turns on generated paper, book typefaces, 8-colour highlights, notes, bookmarks, search, read aloud, explain with your own AI, export notes to Word, PDF, Markdown, text, web page or CSV | Done |
 | Today's reading: a few pages a day from where you stopped, taking turns between books | Done |
-| Practice, Progress, news, Unwind | Next phases |
+| Practice: spaced-repetition flashcards (your own, AI-made per area, or from book highlights), digit span and odd-one-out drills, AI quizzes on any area; all earn lumens | Done |
+| Progress: streak, lumens and level, 12-week heatmap, levels per area, drill trends, and what Lumen knows about you (editable) | Done |
+| News: a daily brief per followed topic from your trusted sources (websites or X accounts, set on You), labelled Confirmed, Reported, Rumour, Fixture or Research; same story once; every link checked | Done |
+| Unwind: a few films, series or documentaries each week, fun first with something useful inside; on Today from Friday to Sunday or every 7th streak day | Done |
 
 The full product spec and the clickable prototype are linked from the project conversation.
 

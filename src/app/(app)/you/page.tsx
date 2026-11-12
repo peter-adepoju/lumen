@@ -6,6 +6,8 @@ import { googleSignInUrl, signOut, useMe } from "@/lib/auth-client";
 import { store, useStore } from "@/lib/store/store";
 import { useTheme } from "@/lib/theme";
 import { KeyForm } from "@/components/key-form";
+import { NewsSources } from "@/components/news";
+import Link from "next/link";
 import { SyncDot } from "@/components/sync-dot";
 import { Button, Card, Chip, cn, PageTitle, Row, Segmented, Switch } from "@/components/ui";
 
@@ -119,6 +121,12 @@ export default function You() {
           <input id="block-word" value={word} onChange={e => setWord(e.target.value)} placeholder="Block a word or topic, e.g. crypto" className="min-w-0 flex-1 rounded-[10px] border border-border bg-surface px-3 py-2" />
           <Button variant="ghost" size="sm" type="submit">Block</Button>
         </form>
+      </Card>
+
+      {p.areas.some(a => a.cat === "news") && <NewsSources topics={p.areas.filter(a => a.cat === "news")} />}
+
+      <Card className="flex items-center justify-between gap-3">
+        <div className="flex flex-col"><span className="eyebrow">Unwind</span><Link href="/unwind" className="text-[13px] underline underline-offset-4">Weekend films and series</Link></div>
       </Card>
 
       <Card className="flex items-center justify-between gap-3">

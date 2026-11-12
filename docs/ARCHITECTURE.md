@@ -64,10 +64,18 @@ YouTube plays through the IFrame API on youtube-nocookie with related videos off
 - Books are saved on the device (IndexedDB, for offline reading) and, when signed in, in the user's Drive under `Lumen/Books/` (the book as JSON plus the original upload). `library.json` lists them with shelf and progress; `reading.json` holds each book's place, highlights, notes and bookmarks; `readerSettings.json` the reader's look.
 - The reader (`reader/engine.js`) is framework-free: CSS columns for pagination, a 3D leaf for page turns, a generated paper texture, selection-based highlights. `/read/[id]` mounts it and passes in the book, saved state and callbacks.
 
+## Practice, Progress, news and Unwind (`src/lib/practice.ts`, `practice-ai.ts`, `progress.ts`)
+
+- Flashcards (`cards.json`) use a simplified SM-2: Again brings a card back today, Good spaces it 1, 3, then interval × ease days, Easy further still. The buttons preview each interval. Cards come from the user, from the AI per area (language cards differ from concept cards), or from a book highlight (`hl-<highlight id>`, so each highlight makes one card).
+- Drills (digit span, odd one out) and quiz scores go to `drills.json`. Practice adds lumens with `addLumens`, which never touches the streak: only the daily session keeps it.
+- News: one Gemini call with Google Search per followed topic per day, limited to the topic's sources in `newsSources.json` (or established outlets when empty) and to the user's blocks. `cleanNews` keeps https links on allowed hosts, merges duplicate stories and defaults unknown labels to Reported; `/api/verify` then drops links that don't open. The brief is cached per day in `news.json` and fetched only when the user taps "Get today's brief", to save their free allowance.
+- Unwind picks are cached per ISO week in `unwind.json`; "Not my thing" removes a pick and blocks the title so it never returns.
+- Progress is computed on the device from `stats.json`, `drills.json`, `feedback.json`, `added.json` and the library. "Forget" removes the matching ratings from `feedback.json`.
+
 ## Design system
 
 Tokens live in `src/app/globals.css` (ivory `#F7F5F0`, charcoal `#17161C`, antique gold `#B08D4F`, plus a dark theme). Fonts are bundled from npm (`@fontsource`), so they work offline: Cormorant Garamond for headings, Jost for text, JetBrains Mono for numbers. Shared components are in `src/components/ui.tsx`.
 
 ## Tests
 
-`npm test` covers the cookie seal, sync merge rules, the daily plan, the Gemini key check, the Drive client (against a fake Drive), link recognition, the private-address guard, the EPUB, PDF and plain-text importers, the Gutenberg search feed, JSON extraction from AI replies, block filtering, the find-picks flow (with a fake AI and checker), and streaks and levels.
+`npm test` covers the cookie seal, sync merge rules, the daily plan, the Gemini key check, the Drive client (against a fake Drive), link recognition, the private-address guard, the EPUB, PDF and plain-text importers, the Gutenberg search feed, JSON extraction from AI replies, block filtering, the find-picks flow (with a fake AI and checker), streaks and levels, the flashcard schedule, drills, news cleaning, Unwind timing, and the Progress summaries.

@@ -30,3 +30,9 @@ export function level(lumens: number) {
   const [name, from] = LEVELS[i], next = LEVELS[i + 1];
   return { name, next: next?.[0] ?? null, toNext: next ? next[1] - lumens : 0, pct: next ? Math.round(((lumens - from) / (next[1] - from)) * 100) : 100 };
 }
+
+/** Lumens for practice outside the daily session. The streak is only kept by sessions. */
+export function addLumens(s: Stats | undefined, n: number): Stats {
+  const st = s ?? emptyStats();
+  return { ...st, lumens: st.lumens + Math.max(0, Math.round(n)) };
+}

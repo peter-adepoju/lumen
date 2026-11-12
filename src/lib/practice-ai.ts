@@ -1,0 +1,94 @@
+// AI parts of Practice, News and Unwind, run with the person's own Gemini key.
+import type { Area, Block, NewsItem, NewsStatus, Profile, UnwindPick } from "./model";
+import { generateJson } from "./gemini";
+import { itemId } from "./links";
+import type { Question } from "./session-ai";
+
+const goal = (p: Profile) => (p.goal ? `Their goal: "${p.goal.slice(0, 300)}".` : "");
+
+export async function quiz(key: string, topic: string, p: Profile, n = 5): Promise<Question[]> {
+  const qs = await generateJson<Question[]>(key, [
+    `Write ${n} multiple-choice questions on "${topic}" for a curious adult who is getting better at it. ${goal(p)}`,
+    `Mix easy and harder questions. Each has 4 short options, exactly one correct, and a one-sentence explanation. Facts must be accurate and not time-sensitive.`,
+    `Reply with JSON only: [{"q": "...", "options": ["...","...","...","..."], "answer": 0-3, "explain": "..."}]`,
+  ].join("\n"));
+  return (Array.isArray(qs) ? qs : []).filter(q => q && Array.isArray(q.options) && q.options.length === 4 && q.answer >= 0 && q.answer < 4).slice(0, n);
+}
+
+export async function makeCards(key: string, area: Area, p: Profile, n = 10, have: string[] = []): Promise<{ front: string; back: string }[]> {
+  const lang = area.cat === "lang";
+  const cards = await generateJson<{ front: string; back: string }[]>(key, [
+    lang ? `Make ${n} flashcards for a learner of ${area.name}: useful everyday words and short phrases, at a level that fits them. Front: the ${area.name} word or phrase. Back: the English meaning, then a short example sentence in ${area.name} with its translation.`
+      : `Make ${n} flashcards that help someone remember the key ideas, terms and techniques of "${area.name}". Front: a short question. Back: a short, accurate answer.`,
+    goal(p),
+    have.length ? `They already have cards for: ${have.slice(-40).join("; ")}. Don't repeat them.` : "",
+    `Reply with JSON only: [{"front": "...", "back": "..."}]`,
+  ].filter(Boolean).join("\n"));
+  return (Array.isArray(cards) ? cards : []).filter(c => c && typeof c.front === "string" && typeof c.back === "string" && c.front.trim() && c.back.trim()).slice(0, n);
+}
+
+/** Turns a book highlight into a question that tests recall of its idea. */
+export async function cardFromHighlight(key: string | undefined, text: string, book: string, note?: string): Promise<{ front: string; back: string }> {
+  if (key) {
+    try {
+      const c = await generateJson<{ front: string; back: string }>(key, `Turn this passage the reader highlighted in "${book}" into one flashcard that tests whether they remember its idea (not its exact words). Passage: """${text.slice(0, 1200)}"""${note ? ` Their note: "${note.slice(0, 300)}".` : ""}\nReply with JSON only: {"front": "a short question", "back": "a short answer"}`);
+      if (c?.front && c?.back) return c;
+    } catch {}
+  }
+  return { front: `From “${book}”: what was this passage about?${note ? ` (Your note: ${note})` : ""}`, back: text };
+}
+
+const STATUSES: NewsStatus[] = ["Confirmed", "Reported", "Rumour", "Fixture", "Research"];
+
+export function newsPrompt(topic: string, sources: string[], blocked: Block[], day: string): string {
+  return [
+    `Today is ${day}. Use Google Search to find the 3 to 5 most important news stories about "${topic}" from the last 48 hours.`,
+    sources.length ? `Use only these trusted sources: ${sources.join(", ")}. If none has news, return [].` : `Use only official accounts and established outlets with a strong record. No gossip sites, aggregators, fan blogs or content farms.`,
+    blocked.length ? `Never include anything matching: ${blocked.map(b => b.value).join("; ")}.` : "",
+    `If several outlets report the same story, include it once. Label each story: Confirmed (officially announced), Reported (a credible outlet says so, not yet official), Rumour (unconfirmed), Fixture (a scheduled event), or Research (a study or report).`,
+    `Write each title and summary in your own words; do not copy headlines. The url must be the exact article page you used.`,
+    `Reply with JSON only: [{"title": "...", "summary": "one or two sentences", "status": "Confirmed|Reported|Rumour|Fixture|Research", "source": "outlet name", "url": "https://...", "date": "YYYY-MM-DD"}]`,
+  ].filter(Boolean).join("\n");
+}
+
+export function cleanNews(raw: unknown, topic: string, sources: string[]): NewsItem[] {
+  const seen = new Set<string>();
+  const allowed = sources.map(s => s.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, ""));
+  return (Array.isArray(raw) ? raw : []).flatMap((n: Partial<NewsItem>) => {
+    if (!n || typeof n.title !== "string" || typeof n.url !== "string" || !/^https:\/\//.test(n.url)) return [];
+    let host = "";
+    try { host = new URL(n.url).hostname.replace(/^www\./, "").toLowerCase(); } catch { return []; }
+    if (allowed.length && !allowed.some(a => a.includes(".") ? host === a || host.endsWith("." + a) : (n.source ?? "").toLowerCase().includes(a))) return [];
+    const key = n.title.toLowerCase().replace(/\W+/g, " ").trim().slice(0, 60);
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{ id: itemId(n.url), topic, title: n.title.slice(0, 160), summary: String(n.summary ?? "").slice(0, 400), status: STATUSES.includes(n.status as NewsStatus) ? (n.status as NewsStatus) : "Reported", source: String(n.source ?? host).slice(0, 60), url: n.url, date: typeof n.date === "string" ? n.date.slice(0, 10) : undefined }];
+  }).slice(0, 5);
+}
+
+export async function unwindPicks(key: string, p: Profile, avoid: string[], n = 4): Promise<UnwindPick[]> {
+  const areas = p.areas.filter(a => a.freq !== "Paused").map(a => a.name);
+  const raw = await generateJson<Partial<UnwindPick>[]>(key, [
+    `Suggest ${n} TV series, films or documentaries to watch for relaxation this weekend. Fun first, with something quietly useful inside that links to one of these areas: ${areas.join(", ")}. ${goal(p)}`,
+    avoid.length ? `Don't suggest: ${avoid.slice(-40).join("; ")}.` : "",
+    `Use Google Search to confirm each title exists. Give the official site or a reliable reference page (for example Wikipedia) as the url, and the most common place to stream it, noting it varies by country.`,
+    `Reply with JSON only: [{"title": "...", "kind": "series|film|documentary", "year": "YYYY", "why": "one sentence on why it's fun and what it quietly teaches", "area": "one of the areas above", "where": "e.g. Netflix (varies by country)", "url": "https://..."}]`,
+  ].filter(Boolean).join("\n"), { search: true });
+  return (Array.isArray(raw) ? raw : []).flatMap(r => (r && typeof r.title === "string" && typeof r.url === "string" && /^https:\/\//.test(r.url))
+    ? [{ id: itemId(r.title.toLowerCase()), title: r.title, kind: (["series", "film", "documentary"].includes(r.kind as string) ? r.kind : "series") as UnwindPick["kind"], year: r.year ? String(r.year).slice(0, 4) : undefined, why: String(r.why ?? "").slice(0, 240), area: r.area, where: r.where ? String(r.where).slice(0, 80) : undefined, url: r.url }]
+    : []).slice(0, n);
+}
+
+/** Unwind picks show on Friday to Sunday, or after a 7-day streak. */
+export function unwindTime(d: Date, streak: number): boolean {
+  return d.getDay() === 5 || d.getDay() === 6 || d.getDay() === 0 || (streak > 0 && streak % 7 === 0);
+}
+
+/** "2026-W46": the ISO week, so picks stay the same all weekend. */
+export function isoWeek(d: Date): string {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - day);
+  const y = t.getUTCFullYear(), w = Math.ceil(((+t - Date.UTC(y, 0, 1)) / 864e5 + 1) / 7);
+  return `${y}-W${String(w).padStart(2, "0")}`;
+}

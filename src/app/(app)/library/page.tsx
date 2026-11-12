@@ -3,7 +3,10 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import type { Shelf } from "@/lib/model";
 import { addClassic, ImportError, importFile, searchClassics, type Classic } from "@/lib/books/library";
-import { useStore } from "@/lib/store/store";
+import { store, useStore } from "@/lib/store/store";
+import { cardFromHighlight } from "@/lib/practice-ai";
+import { newCard } from "@/lib/practice";
+import { today } from "@/lib/recs";
 import { BookCard, Cover, EmptyShelf, TodaysReading } from "@/components/books";
 import { Button, Card, PageTitle, Pill, SectionTitle } from "@/components/ui";
 
@@ -22,6 +25,17 @@ export default function Library() {
   const [hits, setHits] = useState<Classic[] | null>(null);
   const [adding, setAdding] = useState<number | null>(null);
   const file = useRef<HTMLInputElement>(null);
+  const [carding, setCarding] = useState<string | null>(null);
+  const cardIds = new Set((s.get("cards") ?? []).map(c => c.id));
+
+  async function makeCard(m: { id: string; text: string; note?: string; book: { title: string } }) {
+    setCarding(m.id);
+    try {
+      const ai = store.get("ai");
+      const c = await cardFromHighlight(ai?.mode === "own" ? ai.key : undefined, m.text, m.book.title, m.note || undefined);
+      await store.update("cards", l => (l ?? []).some(x => x.id === "hl-" + m.id) ? (l ?? []) : [...(l ?? []), newCard({ id: "hl-" + m.id, area: "books", front: c.front, back: c.back, source: m.book.title }, today())]);
+    } finally { setCarding(null); }
+  }
 
   async function upload(f: File) {
     setProblem(null); setBusy("Reading the book…");
@@ -73,7 +87,7 @@ export default function Library() {
                   {(m.note || m.kind === "note") && <p className="rounded-[8px] bg-surface-2 px-2.5 py-1.5 text-[13.5px]">{m.kind === "note" ? m.text : m.note}</p>}
                   <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-muted">
                     <span>{m.book.title} · page {m.page}</span>
-                    <span className="flex gap-3"><Link className="underline underline-offset-2" href={`/read/${m.book.id}?sheet=notes`}>Open</Link><Link className="underline underline-offset-2" href={`/read/${m.book.id}?sheet=export`}>Export this book&apos;s notes</Link></span>
+                    <span className="flex gap-3">{m.kind === "highlight" && (cardIds.has("hl-" + m.id) ? <Link className="underline underline-offset-2" href="/practice">In your flashcards</Link> : <button className="underline underline-offset-2" disabled={carding === m.id} onClick={() => makeCard(m)}>{carding === m.id ? "Making…" : "Make a flashcard"}</button>)}<Link className="underline underline-offset-2" href={`/read/${m.book.id}?sheet=notes`}>Open</Link><Link className="underline underline-offset-2" href={`/read/${m.book.id}?sheet=export`}>Export this book&apos;s notes</Link></span>
                   </div>
                 </div>
               ))}
