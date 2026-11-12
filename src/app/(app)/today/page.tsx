@@ -4,6 +4,8 @@ import { useState } from "react";
 import { CATEGORY_NAME } from "@/lib/model";
 import { dailyExtras, focusFor, greeting, isReviewDay, weekPlan } from "@/lib/plan";
 import { useStore } from "@/lib/store/store";
+import { currentStreak, level } from "@/lib/stats";
+import { today } from "@/lib/recs";
 import { Card, Chip, cn, Pill, SectionTitle } from "@/components/ui";
 import { SyncDot } from "@/components/sync-dot";
 
@@ -11,6 +13,11 @@ export default function Today() {
   const s = useStore();
   const p = s.get("profile")!;
   const ai = s.get("ai");
+  const stats = s.get("stats");
+  const day = today();
+  const streak = stats ? currentStreak(stats, day) : 0;
+  const doneToday = stats?.lastDay === day;
+  const lv = level(stats?.lumens ?? 0);
   // This page renders only on the device (after the store loads), so reading the clock and storage up front is safe.
   const [now] = useState(() => new Date());
   const [choice, setChoice] = useState<string | null>(() => { try { return localStorage.getItem("lumen:choice:" + new Date().toDateString()); } catch { return null; } });
@@ -44,11 +51,11 @@ export default function Today() {
             <div className="flex flex-col gap-1">
               <span className="eyebrow">{now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</span>
               <h1 className="text-[32px] leading-[1.1] lg:text-[52px] lg:leading-[1.05]">{greeting(now)}</h1>
-              <p className="text-[13.5px] text-muted lg:text-[15px]">{p.minutes} minutes today · {p.planMode}</p>
+              <p className="text-[13.5px] text-muted lg:text-[15px]">{p.minutes} minutes today · <span className="tabular">{(stats?.lumens ?? 0).toLocaleString("en-GB")}</span> lumens · {lv.name}</p>
             </div>
             <div className="flex flex-col items-center gap-1 pt-1">
               <div className="orb size-11 lg:size-16" aria-hidden />
-              <span className="text-[11px] text-muted lg:text-[12px]">Your light starts today</span>
+              <span className="text-[11px] text-muted lg:text-[12px]">{streak ? <><span className="tabular font-medium text-fg">{streak}</span> {streak === 1 ? "day" : "days"} of light</> : "Your light starts today"}</span>
             </div>
           </Card>
 
@@ -69,7 +76,11 @@ export default function Today() {
                 <div className="flex items-center justify-between"><Chip cat={focus.cat}>{CATEGORY_NAME[focus.cat]} day</Chip>{focus.star && <span className="text-[12px] text-gold">★ Starred</span>}</div>
                 <h2 className="text-[26px] lg:text-[38px]">{focus.name}</h2>
                 {extras.length > 0 && <p className="text-[13.5px] text-muted">Also every day: {extras.map(a => a.name).join(", ")}</p>}
-                <p className="border-t border-border pt-3 text-[13px] text-muted">Daily sessions for {focus.name} (warm-up, a pick, practice and a short reflection) are the next part of Lumen being built.</p>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+                  <p className="text-[13px] text-muted">{doneToday ? "✓ Done for today. Keep going in Learn if you like." : `${["Warm-up", "Learn", "Practise", "Reflect"].filter(x => p.steps[x as keyof typeof p.steps]).join(", ")} · about ${p.minutes} min`}</p>
+                  {doneToday ? <Link href="/learn" className="rounded-full border border-border px-3.5 py-1.5 text-[13.5px] font-medium hover:bg-surface-2">Open Learn</Link>
+                    : <Link href="/session" className="rounded-full bg-primary px-4 py-2 text-[14px] font-medium text-on-primary hover:opacity-90">Start today&apos;s session</Link>}
+                </div>
               </>
             ) : (
               <p className="text-[14px] text-muted">No active areas. <Link className="underline underline-offset-4" href="/you">Add or unpause an area</Link>.</p>

@@ -5,6 +5,11 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  {
+    // Thumbnails and covers come from many outside sites (YouTube, Open Library, podcast hosts),
+    // chosen at run time, so next/image's fixed list of allowed hosts doesn't fit.
+    rules: { "@next/next/no-img-element": "off" },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

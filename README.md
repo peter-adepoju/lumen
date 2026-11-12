@@ -18,7 +18,10 @@ Lumen runs on each person's own tools:
 | Setup: Google → connect your Gemini key → areas → goal → how you learn → your plan | Done |
 | Today: the day's focus from a rotation that weights starred areas, daily extras, the week, followed news topics | Done |
 | You: your tools, areas (star, frequency, add, remove), your day, blocked items, theme, export and clear data | Done |
-| Learn, Library and reader, Practice, Progress, daily sessions, news, Unwind | Next phases |
+| Learn: daily picks per area from the user's own Gemini (with Google Search), every link checked before it's shown, filters, block and rate from any pick, add your own links | Done |
+| Player inside Lumen: YouTube videos, Shorts and playlists (no related videos), podcasts, TikTok, Vimeo and TED; resumes where you stopped | Done |
+| Daily session: AI warm-up, today's pick, AI-written practice with feedback, private reflection; streak and lumens | Done |
+| Library and reader, Practice, Progress, news, Unwind | Next phases |
 
 The full product spec and the clickable prototype are linked from the project conversation.
 

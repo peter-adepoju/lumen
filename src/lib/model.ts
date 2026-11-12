@@ -25,7 +25,42 @@ export interface AiSettings { mode: "own" | "none"; key?: string; connectedAt?: 
 export type BlockType = "item" | "creator" | "topic" | "platform";
 export interface Block { type: BlockType; value: string; reason?: string; at: number }
 
-export interface Added { url: string; source: string; area: string; why?: string; creator?: string; at: number }
+export interface Added { url: string; source: string; area: string; why?: string; creator?: string; title?: string; at: number }
+
+/** What a recommendation is. "clip" covers short videos from YouTube Shorts, TikTok, Instagram and so on. */
+export type ItemKind = "video" | "playlist" | "clip" | "podcast" | "book" | "article" | "course";
+export const KIND_LABEL: Record<ItemKind, string> = { video: "Video", playlist: "Playlist", clip: "Short clip", podcast: "Podcast", book: "Book", article: "Article", course: "Course" };
+
+/** A checked, real piece of content Lumen recommends. */
+export interface Item {
+  id: string;            // stable: derived from the canonical URL
+  kind: ItemKind;
+  url: string;           // canonical link
+  title: string;
+  creator: string;
+  platform: string;      // "YouTube", "TikTok", "Open Library", "Apple Podcasts", a site name…
+  thumb?: string;
+  embed?: string;        // an embeddable player address, when the platform offers one
+  minutes?: number;
+  why?: string;          // one line on why it fits this person
+  notice?: string;       // a "what to notice" prompt
+  area: string;          // area id it was picked for
+}
+
+/** One day's picks for one area. Kept so picks don't change every time Learn opens. */
+export interface PickSet { area: string; day: string; items: Item[]; at: number }
+
+export type Rating = "up" | "down" | "too easy" | "too hard" | "done";
+export interface Feedback { id: string; title: string; creator: string; platform: string; area: string; rating: Rating; at: number }
+
+/** Where the person stopped in each item: seconds for video/audio, a fraction for articles, a page for books. */
+export interface Progress { seconds?: number; duration?: number; index?: number; fraction?: number; done?: boolean; at: number }
+
+export interface JournalEntry { day: string; area: string; text: string; at: number }
+
+export interface SessionRecord { day: string; area: string; steps: string[]; minutes: number; lumens: number; at: number }
+
+export interface Stats { streak: number; best: number; lastDay: string | null; lumens: number; sessions: SessionRecord[] }
 
 /** Every document Lumen stores, by name. Each is one JSON file in the user's Lumen folder. */
 export interface Docs {
@@ -33,6 +68,11 @@ export interface Docs {
   ai: AiSettings;
   blocked: Block[];
   added: Added[];
+  picks: PickSet[];
+  feedback: Feedback[];
+  progress: Record<string, Progress>;
+  journal: JournalEntry[];
+  stats: Stats;
 }
 export type DocName = keyof Docs;
 

@@ -41,10 +41,24 @@ The user's own key is checked with Google (`GET /v1beta/models`) before it's sav
 
 A pure function, so every device picks the same focus for the same day. Weekly and Daily areas appear once per cycle, starred areas twice (never on consecutive days), "Sometimes" areas every second cycle, and Sunday is the weekly review. News topics and paused areas never become a focus.
 
+## Recommendations (`src/lib/recs.ts`, `src/lib/server/verify.ts`)
+
+1. On the device, the user's own Gemini (with Google Search) is asked for specific, real items for one area. The prompt carries the goal, preferred formats, recent likes and dislikes, level feedback, links they added and everything they blocked.
+2. `/api/verify` checks each suggestion and fills in title, creator, thumbnail and an embeddable player: YouTube oEmbed for videos, Shorts and playlists; TikTok, Vimeo, TED and X oEmbed; Open Library for books; Apple's podcast search for episodes; and a safe page fetch for articles (public addresses only, 3 redirects, 300 KB). Suggestions it can't confirm are dropped. It never sees user data or keys, and is rate-limited.
+3. Blocked and down-rated items are filtered out, and the day's picks are saved (`picks.json`), so Learn doesn't change every time it opens.
+
+## Daily session (`src/app/(app)/session`, `src/lib/session-ai.ts`, `src/lib/stats.ts`)
+
+Warm-up questions, today's pick, a practice exercise with AI feedback, and a private reflection (`journal.json`, never sent to the AI). Finishing updates `stats.json`: streak (consecutive days), best streak and lumens (10/20/30/10 per step).
+
+## Player (`src/components/player.tsx`)
+
+YouTube plays through the IFrame API on youtube-nocookie with related videos off, saving position (and playlist index) every few seconds to `progress.json`; podcasts play in an audio player that also resumes.
+
 ## Design system
 
 Tokens live in `src/app/globals.css` (ivory `#F7F5F0`, charcoal `#17161C`, antique gold `#B08D4F`, plus a dark theme). Fonts are bundled from npm (`@fontsource`), so they work offline: Cormorant Garamond for headings, Jost for text, JetBrains Mono for numbers. Shared components are in `src/components/ui.tsx`.
 
 ## Tests
 
-`npm test` covers the cookie seal, sync merge rules, the daily plan, the Gemini key check and the Drive client (against a fake Drive).
+`npm test` covers the cookie seal, sync merge rules, the daily plan, the Gemini key check, the Drive client (against a fake Drive), link recognition, the private-address guard, JSON extraction from AI replies, block filtering, the find-picks flow (with a fake AI and checker), and streaks and levels.
