@@ -8,6 +8,7 @@ import { currentStreak, level } from "@/lib/stats";
 import { today } from "@/lib/recs";
 import { Card, Chip, cn, Pill, SectionTitle } from "@/components/ui";
 import { SyncDot } from "@/components/sync-dot";
+import { TodaysReading } from "@/components/books";
 
 export default function Today() {
   const s = useStore();
@@ -89,6 +90,7 @@ export default function Today() {
         </div>
 
         <aside className="flex flex-col gap-3.5 lg:sticky lg:top-24">
+          {p.steps["Today's reading"] && <TodaysReading compact />}
           {ai?.mode !== "own" && (
             <Card className="flex items-center justify-between gap-3 lg:flex-col lg:items-start">
               <p className="text-[13.5px]"><span className="font-medium">Connect your free AI</span><br /><span className="text-muted">Picks, feedback and summaries need your own Gemini key.</span></p>

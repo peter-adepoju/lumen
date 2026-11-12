@@ -11,7 +11,7 @@ import { isEnvelope, pick, wrap, type Envelope } from "./merge";
 export type Mode = "google" | "device";
 export type SyncState = "device" | "syncing" | "synced" | "offline" | "reconnect" | "error";
 
-const DOCS: DocName[] = ["profile", "ai", "blocked", "added", "picks", "feedback", "progress", "journal", "stats"];
+const DOCS: DocName[] = ["profile", "ai", "blocked", "added", "picks", "feedback", "progress", "journal", "stats", "library", "reading", "readerSettings"];
 const file = (n: DocName) => `${n}.json`;
 
 let token: { value: string; expiresAt: number } | null = null;
@@ -122,6 +122,13 @@ class Store {
       if (err instanceof DriveError && err.status === 401) this.setState("reconnect");
       else this.setState(typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "error");
     }
+  }
+
+  /** The user's Drive, when they're signed in with Google; null when Lumen is on this device only. */
+  driveClient(): Drive | null {
+    if (this.mode !== "google") return null;
+    this.drive = this.drive ?? new Drive(accessToken);
+    return this.drive;
   }
 
   /** Everything on this device, for "Export my data". */

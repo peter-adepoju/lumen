@@ -55,10 +55,19 @@ Warm-up questions, today's pick, a practice exercise with AI feedback, and a pri
 
 YouTube plays through the IFrame API on youtube-nocookie with related videos off, saving position (and playlist index) every few seconds to `progress.json`; podcasts play in an audio player that also resumes.
 
+## Library and reader (`src/lib/books`, `src/lib/reader`, `src/app/read`)
+
+- Every book is turned into one format, chapters of paragraphs (`BookDoc`), so EPUB, PDF and plain text all read the same way:
+  - EPUB (`books/epub.ts`): JSZip plus string parsing of the OPF, spine, table of contents (nav or NCX) and XHTML.
+  - PDF (`books/pdf.ts`): pdf.js text extraction, lines rebuilt into paragraphs, chapters from the PDF's bookmarks or every 10 pages. Scanned PDFs are refused with a clear message.
+  - Project Gutenberg (`server/gutenberg.ts`, `books/text.ts`): OPDS search, then the plain-text edition with header, licence and contents removed and chapters detected.
+- Books are saved on the device (IndexedDB, for offline reading) and, when signed in, in the user's Drive under `Lumen/Books/` (the book as JSON plus the original upload). `library.json` lists them with shelf and progress; `reading.json` holds each book's place, highlights, notes and bookmarks; `readerSettings.json` the reader's look.
+- The reader (`reader/engine.js`) is framework-free: CSS columns for pagination, a 3D leaf for page turns, a generated paper texture, selection-based highlights. `/read/[id]` mounts it and passes in the book, saved state and callbacks.
+
 ## Design system
 
 Tokens live in `src/app/globals.css` (ivory `#F7F5F0`, charcoal `#17161C`, antique gold `#B08D4F`, plus a dark theme). Fonts are bundled from npm (`@fontsource`), so they work offline: Cormorant Garamond for headings, Jost for text, JetBrains Mono for numbers. Shared components are in `src/components/ui.tsx`.
 
 ## Tests
 
-`npm test` covers the cookie seal, sync merge rules, the daily plan, the Gemini key check, the Drive client (against a fake Drive), link recognition, the private-address guard, JSON extraction from AI replies, block filtering, the find-picks flow (with a fake AI and checker), and streaks and levels.
+`npm test` covers the cookie seal, sync merge rules, the daily plan, the Gemini key check, the Drive client (against a fake Drive), link recognition, the private-address guard, the EPUB, PDF and plain-text importers, the Gutenberg search feed, JSON extraction from AI replies, block filtering, the find-picks flow (with a fake AI and checker), and streaks and levels.

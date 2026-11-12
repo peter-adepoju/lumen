@@ -21,7 +21,10 @@ Lumen runs on each person's own tools:
 | Learn: daily picks per area from the user's own Gemini (with Google Search), every link checked before it's shown, filters, block and rate from any pick, add your own links | Done |
 | Player inside Lumen: YouTube videos, Shorts and playlists (no related videos), podcasts, TikTok, Vimeo and TED; resumes where you stopped | Done |
 | Daily session: AI warm-up, today's pick, AI-written practice with feedback, private reflection; streak and lumens | Done |
-| Library and reader, Practice, Progress, news, Unwind | Next phases |
+| Library: shelves (currently reading, reserve, finished), upload EPUB and PDF you own, search and download free classics from Project Gutenberg, all highlights and notes in one place | Done |
+| Reader: real pagination, two-page spread on wide screens, 3D page turns on generated paper, book typefaces, 8-colour highlights, notes, bookmarks, search, read aloud, explain with your own AI, export notes to Word, PDF, Markdown, text, web page or CSV | Done |
+| Today's reading: a few pages a day from where you stopped, taking turns between books | Done |
+| Practice, Progress, news, Unwind | Next phases |
 
 The full product spec and the clickable prototype are linked from the project conversation.
 

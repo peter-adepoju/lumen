@@ -62,6 +62,30 @@ export interface SessionRecord { day: string; area: string; steps: string[]; min
 
 export interface Stats { streak: number; best: number; lastDay: string | null; lumens: number; sessions: SessionRecord[] }
 
+/* ---------- Books ---------- */
+export interface BookChapter { title: string; sub?: string; paras: string[] }
+/** A book in Lumen's reading format: plain paragraphs in chapters. Saved in the user's Drive as Books/<id>.json. */
+export interface BookDoc { id: string; title: string; author: string; note?: string; chapters: BookChapter[] }
+export type Shelf = "active" | "reserve" | "finished";
+export interface LibraryEntry {
+  id: string; title: string; author: string;
+  source: "upload" | "gutenberg"; format: "epub" | "pdf" | "text";
+  cover?: string;          // a small data: image, or a public cover address
+  file?: string;           // the original upload, in the user's Drive (Books/<id>.epub)
+  gutenbergId?: number;
+  shelf: Shelf; words: number; addedAt: number; lastReadAt?: number;
+  at?: { page: number; total: number; pct: number; chapter: string };
+}
+export type Highlight = { id: string; group?: string; ch: number; p: number; s: number; e: number; color: string; note: string; text: string; at: number; page: number };
+export type PageNote = { id: string; ch: number; p: number; text: string; at: number; page: number };
+/** Where the reader is in one book, and everything they marked in it. */
+export interface ReadingState {
+  ch: number; p: number; hl: Highlight[]; notes: PageNote[]; bookmarks: { id: string; ch: number; p: number; at: number; text: string }[];
+  day: string | null; todayFrom: number | null; readToday: number[];
+  at?: { page: number; total: number; pct: number; chapter: string };
+}
+export type ReaderSettings = Record<string, string | number | boolean>;
+
 /** Every document Lumen stores, by name. Each is one JSON file in the user's Lumen folder. */
 export interface Docs {
   profile: Profile;
@@ -73,6 +97,9 @@ export interface Docs {
   progress: Record<string, Progress>;
   journal: JournalEntry[];
   stats: Stats;
+  library: LibraryEntry[];
+  reading: Record<string, ReadingState>;
+  readerSettings: ReaderSettings;
 }
 export type DocName = keyof Docs;
 
