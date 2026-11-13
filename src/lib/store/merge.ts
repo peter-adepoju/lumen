@@ -18,3 +18,15 @@ export function pick<T>(local: Envelope<T> | null | undefined, remote: Envelope<
 export function isEnvelope(x: unknown): x is Envelope {
   return !!x && typeof x === "object" && "at" in x && "v" in x && typeof (x as Envelope).at === "number";
 }
+
+/**
+ * When a device first joins an account's Drive: the account's own setup (areas, AI key,
+ * news sources, reader settings) comes from Drive if it's there; for everything else the
+ * newer copy wins; anything only on the device is uploaded. Returns what to do with one document.
+ */
+export function joinChoice<T>(isSetup: boolean, local: Envelope<T> | null | undefined, remote: Envelope<T> | null | undefined): "take-remote" | "upload" | "keep" {
+  const which = remote && isSetup ? "remote" : pick(local, remote);
+  if (which === "remote" && remote) return "take-remote";
+  if (local && (!remote || remote.at !== local.at)) return "upload";
+  return "keep";
+}

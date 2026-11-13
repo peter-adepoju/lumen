@@ -88,6 +88,10 @@ Google answers 429 for different reasons, and each free model has its own allowa
 
 The orb on Today and in the site header follows what the person did. A session or review today makes it shine (level 1); practice, a game or reading alone keeps it lit (0.92). Learned yesterday: waiting (0.85). Each full day missed dims it (0.62, 0.45, 0.32, then 0.22) and after 7 missed days it is an ember (0.12) that flickers but never goes out. The level is scaled by how many of the last 7 days had learning (0.8 to 1). CSS reads it as `--glow` and sets brightness, colour, glow size and breathing speed, with slow transitions so a session visibly relights it. Progress explains the rules and shows the last 7 days.
 
+### A second device
+
+After Google sign-in, setup switches the device to Drive and waits for the first sync. If the account already has a profile in Drive (set up on another device), it goes straight to Today; otherwise setup continues. When a device first joins Drive (`joinChoice` in `store/merge.ts`), the account's own setup in Drive (profile, AI key, news sources, reader settings) wins over the device's copy; for every other document the newer copy wins, and documents only on the device are uploaded. Nothing in Drive is overwritten just because a device joined.
+
 ## Design system
 
 Tokens live in `src/app/globals.css` (ivory `#F7F5F0`, charcoal `#17161C`, antique gold `#B08D4F`, plus a dark theme). Fonts are bundled from npm (`@fontsource`), so they work offline: Cormorant Garamond for headings, Jost for text, JetBrains Mono for numbers. Shared components are in `src/components/ui.tsx`.

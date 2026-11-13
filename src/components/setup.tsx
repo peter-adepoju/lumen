@@ -48,8 +48,24 @@ function SetupFlow() {
   const [minutes, setMinutes] = useState(() => existing?.minutes ?? 20);
   const [mode, setMode] = useState<PlanMode>(() => existing?.planMode ?? "Lumen plans each day");
 
-  // Coming back signed in: from now on, save to Drive.
-  useEffect(() => { if (me?.user && s.mode !== "google") store.useMode("google"); }, [me, s.mode]);
+  // Signed in with Google: save to Drive from now on, and if this account already has a Lumen
+  // (set up on another device), bring it in and skip setup. "Run setup again" (a profile already
+  // on this device) still shows the steps.
+  const [hadProfile] = useState(() => !!store.get("profile"));
+  const [restoring, setRestoring] = useState<"checking" | "done">("done");
+  const signedIn = !!me?.user;
+  useEffect(() => {
+    if (!signedIn) return;
+    let live = true;
+    (async () => {
+      if (!hadProfile && live) setRestoring("checking");
+      if (store.mode !== "google") await store.useMode("google"); else await store.sync();
+      if (!live) return;
+      if (!hadProfile && store.get("profile")) { router.replace("/today"); return; }
+      setRestoring("done");
+    })();
+    return () => { live = false; };
+  }, [signedIn, hadProfile, router]);
 
   const go = (n: number) => { setStep(n); setProblem(null); window.scrollTo(0, 0); history.replaceState(null, "", `/setup?step=${n}`); };
   const toggle = (name: string, cat: Category) =>
@@ -67,6 +83,16 @@ function SetupFlow() {
 
   const plan = useMemo(() => weekPlan(picks.map((a, i) => ({ ...a, star: i === 0 })), mode, new Date()), [picks, mode]);
   const customs = picks.filter(a => !AREA_LIBRARY.some(([, , l]) => l.includes(a.name)));
+
+  if (restoring === "checking") return (
+    <main className="grid min-h-dvh place-items-center px-6">
+      <div className="flex max-w-[360px] flex-col items-center gap-4 text-center">
+        <div className="orb size-12" aria-hidden />
+        <p className="font-display text-[26px] leading-tight">Looking for your Lumen</p>
+        <p className="text-[14px] text-muted" role="status">Checking your Google Drive. If you&apos;ve used Lumen on another device, your areas, key, library and progress come back here.</p>
+      </div>
+    </main>
+  );
 
   return (
     <div className="lg:mx-auto lg:grid lg:min-h-dvh lg:max-w-[1160px] lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-20 lg:px-8">
@@ -101,7 +127,7 @@ function SetupFlow() {
 
       {step === 0 && (
         <>
-          <Intro title="Your Lumen, on your own Google account" text="Lumen runs on your own tools. Your data is saved in your Google Drive, and the AI uses your own free Gemini allowance." />
+          <Intro title="Your Lumen, on your own Google account" text="Lumen runs on your own tools. Your data is saved in your Google Drive, and the AI uses your own free Gemini allowance. Already use Lumen on another device? Sign in with the same Google account and everything comes back." />
           <Card className="flex flex-col gap-3.5">
             {[
               ["Your Google Drive", "Books, notes, highlights, progress and what Lumen learns about you go into a Lumen folder in your Drive. Lumen can\u2019t see your other files."],

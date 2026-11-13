@@ -6,10 +6,13 @@ import { useSyncExternalStore } from "react";
 import type { DocName, Docs } from "../model";
 import { idb } from "./idb";
 import { Drive, DriveError } from "./drive";
-import { isEnvelope, pick, wrap, type Envelope } from "./merge";
+import { isEnvelope, joinChoice, pick, wrap, type Envelope } from "./merge";
 
 export type Mode = "google" | "device";
 export type SyncState = "device" | "syncing" | "synced" | "offline" | "reconnect" | "error";
+
+/** The account's own setup: when a new device joins, Drive's copy of these wins over the device's. */
+const SETUP_DOCS = new Set<DocName>(["profile", "ai", "newsSources", "readerSettings"]);
 
 const DOCS: DocName[] = ["profile", "ai", "blocked", "added", "picks", "feedback", "progress", "journal", "stats", "library", "reading", "readerSettings", "cards", "drills", "news", "newsSources", "unwind", "games"];
 const file = (n: DocName) => `${n}.json`;
@@ -82,7 +85,8 @@ class Store {
   async useMode(mode: Mode) {
     this.mode = mode;
     await idb.set("mode", mode);
-    if (mode === "google") { DOCS.forEach(n => this.cache.has(n) && this.dirty.add(n)); await this.sync(); }
+    // Joining Drive: compare with what's already there instead of overwriting it (see run()).
+    if (mode === "google") { this.joining = true; await this.sync(); }
     else this.setState("device");
     this.emit();
   }
@@ -93,6 +97,8 @@ class Store {
   }
 
   private syncing: Promise<void> | null = null;
+  /** True for the first sync after this device joins Drive. */
+  private joining = false;
   sync(): Promise<void> {
     if (this.mode !== "google") return Promise.resolve();
     if (this.syncing) return this.syncing;
@@ -105,12 +111,23 @@ class Store {
     this.setState("syncing");
     try {
       this.drive = this.drive ?? new Drive(accessToken);
+      const joining = this.joining;
       for (const n of DOCS) {
-        if (this.dirty.has(n)) continue; // our change is newer than anything we pulled before it
         const remote = await this.drive.readJson<Envelope>(file(n));
-        const which = pick(this.cache.get(n), isEnvelope(remote) ? remote : null);
-        if (which === "remote" && isEnvelope(remote)) { this.cache.set(n, remote); await idb.set("doc:" + n, remote); this.emit(); }
+        const r = isEnvelope(remote) ? remote : null, local = this.cache.get(n);
+        if (joining) {
+          // A device joining an account: the account's own setup in Drive wins; for everything
+          // else the newer copy wins; anything only on this device is uploaded.
+          const choice = joinChoice(SETUP_DOCS.has(n), local, r);
+          if (choice === "take-remote" && r) { this.cache.set(n, r); this.dirty.delete(n); await idb.set("doc:" + n, r); this.emit(); }
+          else if (choice === "upload") this.dirty.add(n);
+          continue;
+        }
+        if (this.dirty.has(n)) continue; // our change is newer than anything we pulled before it
+        if (pick(local, r) === "remote" && r) { this.cache.set(n, r); await idb.set("doc:" + n, r); this.emit(); }
       }
+      this.joining = false;
+      await idb.set("dirty", [...this.dirty]);
       for (const n of [...this.dirty]) {
         const e = this.cache.get(n);
         if (e) await this.drive.writeJson(file(n), e);
