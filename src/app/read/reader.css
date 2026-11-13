@@ -219,16 +219,17 @@ body.reading { overflow: hidden; }
 /* An EPUB's own background image is shown as published, not blended into Lumen's paper. */
 #reader.rd-own-look .rd-paper::before { mix-blend-mode: normal; opacity: 1; }
 
-/* ---------- Real pages (PDFs) ---------- */
-/* Each real page fills one page of the book; the PDF has its own running heads and page numbers. */
-.rd-fixed .rd-head, .rd-fixed .rd-folio, .rd-fixed .rd-facehead, .rd-fixed .rd-facefolio { display: none !important; }
-.rd-flow p.rd-fpage { display: block; margin: 0; padding: 0; text-indent: 0; break-inside: avoid; break-after: column; position: relative; }
-.rd-fbox { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: block; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .05); }
-.rd-fimg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; user-select: none; -webkit-user-select: none; pointer-events: none; }
-.rd-fimg:not([src]) { visibility: hidden; }
-/* The words sit exactly over the printed ones: invisible, but they can be selected, highlighted and read aloud. */
-.rd-w { position: absolute; white-space: pre; line-height: 1; color: transparent; transform-origin: 0 0; font-family: Arial, Helvetica, sans-serif; text-align: left; cursor: text; }
-.rd-fpage .rd-hl { color: transparent; background: color-mix(in srgb, var(--hc) 46%, transparent); mix-blend-mode: multiply; padding: 0; border-radius: 1px; }
-.rd-fpage .rd-hl.has-note { border-bottom-width: 2px; }
-.rd-fpage ::selection { background: rgba(60, 120, 215, .32); color: transparent; }
-.rd-note-fixed { margin: 4px 0 10px; font-size: 13px; color: var(--pg-muted, #8a7f6c); line-height: 1.5; }
+/* ---------- PDF reader: pdf.js text layer (selectable text over each page) ---------- */
+.pdf-page .textLayer { position: absolute; text-align: initial; inset: 0; overflow: clip; opacity: 1; line-height: 1; text-size-adjust: none; -webkit-text-size-adjust: none; forced-color-adjust: none; transform-origin: 0 0; caret-color: CanvasText; z-index: 2; }
+.pdf-page .textLayer :is(span, br) { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%; user-select: text; -webkit-user-select: text; }
+.pdf-page .textLayer > :not(.markedContent), .pdf-page .textLayer .markedContent span:not(.markedContent) { z-index: 1; }
+.pdf-page .textLayer span.markedContent { top: 0; height: 0; }
+.pdf-page .textLayer span[role="img"] { user-select: none; cursor: default; }
+.pdf-page .textLayer ::selection { background: rgb(37 99 235 / 0.28); color: transparent; }
+.pdf-page .textLayer br::selection { background: transparent; }
+.pdf-page .textLayer .endOfContent { display: block; position: absolute; inset: 100% 0 0; z-index: 0; cursor: default; user-select: none; }
+.pdf-page .textLayer.selecting .endOfContent { top: 0; }
+::highlight(pdf-search) { background-color: rgb(246 213 92 / 0.6); }
+::highlight(pdf-search-current) { background-color: rgb(247 178 103 / 0.8); }
+@keyframes pdf-flash { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+.pdf-flash { animation: pdf-flash 0.6s ease-in-out 3; }

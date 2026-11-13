@@ -96,28 +96,17 @@ export async function bookOriginal(id: string): Promise<Blob | null> {
   return blob;
 }
 
-/**
- * Books added before Lumen showed each book's own look: an EPUB gets its look from its
- * stylesheet; a PDF switches to its real pages, unless it already has highlights or notes
- * (their positions belong to the text view, so it keeps that).
- */
+/** EPUBs added before Lumen read each book's own look get it the first time they're opened. */
 async function upgrade(doc: BookDoc): Promise<BookDoc> {
   const entry = store.get("library")?.find(b => b.id === doc.id);
-  if (!entry || entry.source !== "upload") return doc;
-  const needLook = entry.format === "epub" && doc.look === undefined;
-  const r = store.get("reading")?.[doc.id];
-  const needPages = entry.format === "pdf" && doc.layout !== "fixed" && !(r?.hl?.length || r?.notes?.length);
-  if (!needLook && !needPages) return doc;
+  if (!entry || entry.source !== "upload" || entry.format !== "epub" || doc.look !== undefined) return doc;
   try {
     const blob = await bookOriginal(doc.id);
     if (!blob) return doc;
-    let next = doc;
-    if (needLook) next = { ...doc, look: await (await import("./epub")).epubLook(blob) };
-    if (needPages) { const p = await (await import("./pdf")).parsePdf(await blob.arrayBuffer()); next = { ...doc, chapters: p.chapters, layout: "fixed" }; }
+    const next = { ...doc, look: await (await import("./epub")).epubLook(blob) };
     await idb.set("book:" + doc.id, next);
     const drive = store.driveClient();
     if (drive) drive.writeJson(`Books/${doc.id}.json`, next).catch(() => {});
-    if (needPages) await store.update("reading", rd => { const all = { ...(rd ?? {}) }; if (all[doc.id]) all[doc.id] = { ...all[doc.id], ch: 0, p: 0, bookmarks: [] }; return all; });
     return next;
   } catch { return doc; }
 }

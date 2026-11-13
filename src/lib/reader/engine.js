@@ -17,13 +17,11 @@ export function createReader() {
     sepia: { name: "Sepia", bg: "#EADBBE", fg: "#3B2C1B", muted: "#8A7458", desk: "#2F241A" },
     night: { name: "Night", bg: "#1E1C19", fg: "#D8CFBF", muted: "#7C7365", desk: "#0D0C0B" }
   };
-  const DEFAULTS = { font: "garamond", size: 19, lh: 1.6, margin: "normal", justify: true, theme: "paper", bright: 100, warm: 10, turn: "flip", sound: true, spread: "auto", pagesPerDay: 5 };
+  const DEFAULTS = { font: "garamond", size: 19, lh: 1.6, margin: "normal", justify: true, theme: "paper", bright: 100, warm: 10, turn: "none", sound: true, spread: "auto", pagesPerDay: 5 };
   const WPM = 230;
 
   let book = null, S = null, ui = {}, layout = null, pageCounts = [], opts = {}, open = false, measureKey = "";
   let paperUrl = "";
-  /* A fixed-layout book (a PDF) shows its real pages: one page image per book page, with its words laid over it. */
-  const fixed = () => book && book.layout === "fixed";
   /* The book's own look (an EPUB's page colour or background image), used when the page theme is "Original". */
   const hasLook = () => !!(book && book.look && (book.look.bg || book.look.image));
   let speaking = false, rootEl = null, cleanup = [];
@@ -47,7 +45,7 @@ export function createReader() {
     book.chapters.forEach(c => { c.words = c.paras.join(" ").split(/\s+/).length; c.sub = c.sub || c.title; });
     S = Object.assign(blankState(), o.state || {});
     S.settings = Object.assign({}, DEFAULTS, o.settings || {});
-    if (S.settings.turn === "curl") S.settings.turn = "flip";
+    if (S.settings.turn === "curl" || S.settings.turn === "flip") S.settings.turn = "none"; // the 3D page flip was retired: pages just change
     pageCounts = []; measureKey = ""; curPage = 0;
     rollDay();
   }
@@ -118,7 +116,6 @@ export function createReader() {
       if (Math.abs(dx) > 50 && window.getSelection().isCollapsed) turn(dx < 0 ? 1 : -1);
     }, { passive: true });
     paperUrl = makePaper(); if (paperUrl) root.style.setProperty("--paper-img", `url(${paperUrl})`);
-    root.classList.toggle("rd-fixed", !!fixed());
     const onResize = () => { if (open) { measureKey = ""; relayout(true); } };
     const onKey = e => {
       if (!open || /input|textarea|select/i.test(e.target.tagName)) return;
@@ -159,14 +156,12 @@ export function createReader() {
   }
 
   /* ---------------- Theme + layout ---------------- */
-  let fixedBg = "";
   function applyTheme() {
     const s = S.settings, t = THEMES[s.theme], r = ui.root.style;
     r.setProperty("--pg-bg", t.bg); r.setProperty("--pg-fg", t.fg); r.setProperty("--pg-muted", t.muted); r.setProperty("--desk", t.desk);
     // "Paper" is the default; for a book with its own look it shows that look instead ("Original").
-    const own = s.theme === "paper" && (hasLook() || fixed());
-    if (own && fixed()) { if (fixedBg) r.setProperty("--pg-bg", fixedBg); r.setProperty("--paper-img", "none"); }
-    else if (own) {
+    const own = s.theme === "paper" && hasLook();
+    if (own) {
       const L = book.look;
       if (L.bg) r.setProperty("--pg-bg", L.bg);
       if (L.fg) r.setProperty("--pg-fg", L.fg);
@@ -187,9 +182,7 @@ export function createReader() {
     let bookW = spread ? Math.min(vw - 2 * deskPad, 1180) : Math.min(vw - 2 * deskPad, 640);
     let bookH = Math.min(vh - 2 * deskPad - (vw < 520 ? 0 : 8), spread ? bookW * 0.7 : 980);
     if (!spread && vw >= 520) bookH = Math.min(bookH, bookW * 1.5);
-    const fx = fixed();
-    const padX = fx ? (vw < 520 ? 6 : 14) : Math.round((spread ? 52 : vw < 520 ? 26 : 44) * mx);
-    const padTop = fx ? (vw < 520 ? 10 : 14) : vw < 520 ? 58 : 62, padBot = fx ? (vw < 520 ? 10 : 14) : vw < 520 ? 58 : 60;
+    const padX = Math.round((spread ? 52 : vw < 520 ? 26 : 44) * mx), padTop = vw < 520 ? 58 : 62, padBot = vw < 520 ? 58 : 60;
     const pageW = spread ? bookW / 2 : bookW;
     const tw = Math.floor(pageW - 2 * padX), th = Math.floor(bookH - padTop - padBot);
     const gap = 2 * padX;
@@ -204,59 +197,12 @@ export function createReader() {
   }
 
   function chapterHTML(ci) {
-    if (fixed()) return book.chapters[ci].pages.map((_, i) => fixedPageHTML(ci, i)).join("");
     const c = book.chapters[ci];
     const marks = S.hl.filter(h => h.ch === ci);
     const pnotes = S.notes.filter(n => n.ch === ci);
     return `<div class="rd-opener"><div class="rd-num">${esc(c.title)}</div><h2>${esc(c.sub)}</h2><div class="rd-orn">❦</div></div>` +
       c.paras.map((t, i) => `<p data-p="${i}" class="${i === 0 ? "rd-drop" : ""}">${paraHTML(t, marks.filter(h => h.p === i))}${pnotes.some(n => n.p === i) ? `<button class="rd-pnote" data-r="notes" aria-label="This page has a note">✎</button>` : ""}</p>`).join("") +
       (ci === book.chapters.length - 1 ? `<div class="rd-end">❦<br><span>The end</span></div>` : "");
-  }
-  /* One real page: the page image, fitted inside the book page, with its words on top (invisible, but selectable and highlightable). */
-  function fixedPageHTML(ci, i) {
-    const c = book.chapters[ci], pg = c.pages[i], L = layout, text = c.paras[i] || "";
-    const s = Math.min(L.tw / pg.w, L.th / pg.h), bw = Math.floor(pg.w * s), bh = Math.floor(pg.h * s);
-    const marks = S.hl.filter(h => h.ch === ci && h.p === i).sort((a, b) => a.s - b.s);
-    let off = 0;
-    const spans = pg.items.map((it, k) => {
-      const t = it[0] + (k < pg.items.length - 1 ? " " : ""), a = off, b = off + t.length; off = b;
-      let inner = "", at = a;
-      for (const m of marks) {
-        const ms = Math.max(m.s, a), me = Math.min(m.e, b);
-        if (me <= ms || ms < at) continue;
-        inner += esc(text.slice(at, ms)) + `<mark data-h="${m.id}" class="rd-hl ${m.note ? "has-note" : ""}" style="--hc:${COLORS[m.color]}">${esc(text.slice(ms, me))}</mark>`;
-        at = me;
-      }
-      inner += esc(text.slice(at, b));
-      return `<span class="rd-w" data-tw="${(it[3] * s).toFixed(1)}" style="left:${(it[1] * s).toFixed(1)}px;top:${(it[2] * s).toFixed(1)}px;font-size:${Math.max(1, it[4] * s).toFixed(1)}px">${inner}</span>`;
-    }).join("");
-    const cached = imgCache.get(pg.n + "@" + bw);
-    return `<p data-p="${i}" class="rd-fpage" style="width:${L.tw}px;height:${L.th}px"><span class="rd-fbox" style="width:${bw}px;height:${bh}px">` +
-      `<img class="rd-fimg" data-pg="${pg.n}" data-w="${bw}" alt="Page ${pg.n}" ${cached ? `src="${cached}"` : ""}>${spans}</span></p>`;
-  }
-  const imgCache = new Map();
-  /* Draws the real pages that are on screen (and the next few), then sizes the word layer to the printed words. */
-  function loadPages() {
-    if (!fixed() || !opts.renderPage) return;
-    const want = [...ui.flow.querySelectorAll("img.rd-fimg:not([src])")];
-    for (const img of want) {
-      const n = +img.dataset.pg, w = +img.dataset.w, key = n + "@" + w;
-      opts.renderPage(n, w).then(r => {
-        if (!r) return;
-        imgCache.set(key, r.url);
-        ui.root.querySelectorAll(`img.rd-fimg[data-pg="${n}"][data-w="${w}"]`).forEach(el => { el.src = r.url; });
-        if (!fixedBg && r.bg) { fixedBg = r.bg; applyTheme(); }
-      });
-    }
-    fitWords();
-  }
-  function fitWords() {
-    requestAnimationFrame(() => {
-      for (const sp of ui.flow.querySelectorAll(".rd-w[data-tw]")) {
-        const natural = sp.offsetWidth, target = +sp.dataset.tw;
-        if (natural > 0 && target > 0) sp.style.transform = `scaleX(${(target / natural).toFixed(3)})`;
-      }
-    });
   }
   function paraHTML(text, marks) {
     if (!marks.length) return esc(text);
@@ -274,7 +220,6 @@ export function createReader() {
     const L = layout, key = [L.tw, L.th, L.gap, S.settings.font, S.settings.size, S.settings.lh, S.settings.justify].join("|");
     if (key === measureKey && pageCounts.length) return;
     measureKey = key;
-    if (fixed()) { pageCounts = book.chapters.map(c => c.pages.length); return; }
     styleFlow(ui.mflow, L);
     ui.mflow.style.width = L.tw + "px";
     pageCounts = book.chapters.map((_, i) => {
@@ -285,7 +230,7 @@ export function createReader() {
   }
   const totalPages = () => pageCounts.reduce((a, b) => a + b, 0);
   const chStart = ci => pageCounts.slice(0, ci).reduce((a, b) => a + b, 0);
-  function localPages() { return fixed() ? book.chapters[S.ch].pages.length : Math.max(1, Math.round(ui.flow.scrollWidth / layout.colW + 0.49)); }
+  function localPages() { return Math.max(1, Math.round(ui.flow.scrollWidth / layout.colW + 0.49)); }
 
   let curPage = 0; /* local page index in the current chapter (left page in a spread) */
   function relayout(keepPlace) {
@@ -311,10 +256,8 @@ export function createReader() {
     else curPage = 0;
     if (layout.spread) curPage -= curPage % 2;
     position(false);
-    loadPages();
   }
   function pageOfPara(p) {
-    if (fixed()) return Math.max(0, Math.min(p, book.chapters[S.ch].pages.length - 1)); // one real page per book page
     const el = ui.flow.querySelector(`[data-p="${p}"]`);
     if (!el) return 0;
     const flowLeft = ui.flow.getBoundingClientRect().left;
@@ -541,7 +484,7 @@ export function createReader() {
   function refreshText() {
     const keep = curPage;
     ui.flow.innerHTML = chapterHTML(S.ch); curPage = keep; position(false);
-    measureKey = ""; measureAll(); loadPages();
+    measureKey = ""; measureAll();
   }
 
   /* ---------------- Popover ---------------- */
@@ -610,14 +553,14 @@ export function createReader() {
   function sheetType() {
     const s = S.settings, seg = (name, list, cur) => `<div class="rd-seg">${list.map(([v, l]) => `<button data-set="${name}" data-v="${v}" aria-pressed="${String(cur) === String(v)}">${l}</button>`).join("")}</div>`;
     ui.sheet.innerHTML = sheetHead("Text and page") + `
-      <div class="rd-row"><span>Page</span><div class="rd-themes">${Object.entries(THEMES).map(([k, t]) => { const own = k === "paper" && (hasLook() || fixed()), bg = own ? (fixed() ? fixedBg || "#fff" : book.look.bg || t.bg) : t.bg, fg = own && book.look && book.look.fg ? book.look.fg : t.fg; return `<button class="rd-theme ${s.theme === k ? "on" : ""}" data-set="theme" data-v="${k}" style="background:${bg};color:${fg}" aria-pressed="${s.theme === k}">${own ? "Original" : t.name}</button>`; }).join("")}</div></div>
-      ${fixed() ? `<p class="rd-note-fixed">This book shows its real pages, so text size and typeface come from the book. Pinch or use your browser's zoom to read closer.</p>` : `<div class="rd-row"><span>Typeface</span>${seg("font", Object.entries(FONTS).map(([k, f]) => [k, `<span style="font-family:${f[0].replace(/"/g, "&quot;")}">${f[1]}</span>`]), s.font)}</div>
+      <div class="rd-row"><span>Page</span><div class="rd-themes">${Object.entries(THEMES).map(([k, t]) => { const own = k === "paper" && hasLook(), bg = own ? book.look.bg || t.bg : t.bg, fg = own && book.look && book.look.fg ? book.look.fg : t.fg; return `<button class="rd-theme ${s.theme === k ? "on" : ""}" data-set="theme" data-v="${k}" style="background:${bg};color:${fg}" aria-pressed="${s.theme === k}">${own ? "Original" : t.name}</button>`; }).join("")}</div></div>
+      <div class="rd-row"><span>Typeface</span>${seg("font", Object.entries(FONTS).map(([k, f]) => [k, `<span style="font-family:${f[0].replace(/"/g, "&quot;")}">${f[1]}</span>`]), s.font)}</div>
       <div class="rd-row"><label for="rd-size">Text size</label><div class="rd-slide"><span style="font-size:13px">A</span><input id="rd-size" type="range" min="14" max="28" step="1" value="${s.size}" data-set="size"><span style="font-size:20px">A</span></div></div>
       <div class="rd-row"><span>Line spacing</span>${seg("lh", [[1.4, "Tight"], [1.6, "Normal"], [1.85, "Loose"]], s.lh)}</div>
       <div class="rd-row"><span>Margins</span>${seg("margin", [["narrow", "Narrow"], ["normal", "Normal"], ["wide", "Wide"]], s.margin)}</div>
-      <div class="rd-row"><span>Alignment</span>${seg("justify", [[true, "Justified"], [false, "Left"]], s.justify)}</div>`}
+      <div class="rd-row"><span>Alignment</span>${seg("justify", [[true, "Justified"], [false, "Left"]], s.justify)}</div>
       <div class="rd-row"><span>Layout</span>${seg("spread", [["auto", "Auto"], ["one", "One page"], ["two", "Two pages"]], s.spread)}</div>
-      <div class="rd-row"><span>Page turn</span>${seg("turn", [["flip", "Page flip"], ["slide", "Slide"], ["none", "Instant"]], s.turn)}</div>
+      <div class="rd-row"><span>Page turn</span>${seg("turn", [["none", "Instant"], ["slide", "Slide"]], s.turn)}</div>
       <div class="rd-row"><label for="rd-bright">Brightness</label><input id="rd-bright" type="range" min="40" max="100" value="${s.bright}" data-set="bright"></div>
       <div class="rd-row"><label for="rd-warm">Warmth</label><input id="rd-warm" type="range" min="0" max="100" value="${s.warm}" data-set="warm"></div>
       <div class="rd-row"><label for="rd-sound">Page sound</label><input id="rd-sound" type="checkbox" class="rd-switch" data-set="sound" ${s.sound ? "checked" : ""}></div>

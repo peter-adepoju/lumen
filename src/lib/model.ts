@@ -91,7 +91,11 @@ export interface LibraryEntry {
   shelf: Shelf; words: number; addedAt: number; lastReadAt?: number;
   at?: { page: number; total: number; pct: number; chapter: string };
 }
-export type Highlight = { id: string; group?: string; ch: number; p: number; s: number; e: number; color: string; note: string; text: string; at: number; page: number };
+/**
+ * A highlight. In text books it's a range (s to e) of paragraph p in chapter ch.
+ * In PDFs it's boxes on page `page`, each [x, y, width, height] as fractions of the page.
+ */
+export type Highlight = { id: string; group?: string; ch: number; p: number; s: number; e: number; color: string; note: string; text: string; at: number; page: number; rects?: [number, number, number, number][] };
 export type PageNote = { id: string; ch: number; p: number; text: string; at: number; page: number };
 /** Where the reader is in one book, and everything they marked in it. */
 export interface ReadingState {

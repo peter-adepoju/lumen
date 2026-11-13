@@ -22,7 +22,8 @@ Lumen runs on each person's own tools:
 | Player inside Lumen: YouTube videos, Shorts and playlists (no related videos), podcasts, TikTok, Vimeo and TED; resumes where you stopped | Done |
 | Daily session: AI warm-up, today's pick, AI-written practice with feedback, private reflection; streak and lumens | Done |
 | Library: shelves (currently reading, reserve, finished), upload EPUB and PDF you own, search and download free classics from Project Gutenberg, all highlights and notes in one place | Done |
-| Reader: each book's own look (PDFs show their real pages; EPUBs use their publisher's page colour or background; books with none get Lumen's paper), real pagination, two-page spread on wide screens, 3D page turns, book typefaces, 8-colour highlights, notes, bookmarks, search, read aloud, explain with your own AI, export notes to Word, PDF, Markdown, text, web page or CSV | Done |
+| PDF reader in the style of Selah's: real pages in a continuous scroll, zoom, contents and thumbnails, search, highlights with notes and export, bookmarks, light/sepia/night | Done |
+| Book reader for EPUBs and classics: the publisher's page colour or background (else Lumen's paper), real pagination, two-page spread on wide screens, book typefaces, 8-colour highlights, notes, bookmarks, search, read aloud, explain with your own AI, export notes to Word, PDF, Markdown, text, web page or CSV | Done |
 | Today's reading: a few pages a day from where you stopped, taking turns between books | Done |
 | Practice: spaced-repetition flashcards (your own, AI-made per area, or from book highlights), digit span and odd-one-out drills, AI quizzes on any area; all earn lumens | Done |
 | Progress: streak, lumens and level, 12-week heatmap, levels per area, drill trends, and what Lumen knows about you (editable) | Done |
