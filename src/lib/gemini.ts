@@ -4,9 +4,14 @@ export const AI_STUDIO_URL = "https://aistudio.google.com/apikey";
 const BASE = "https://generativelanguage.googleapis.com/v1beta";
 export const DEFAULT_MODEL = "gemini-flash-latest";
 
-/** Gemini API keys are 39 characters and start with "AIza". */
+/**
+ * Gemini API keys from Google AI Studio come in two shapes: the classic one
+ * (39 characters, starting "AIza") and the newer one (starting "AQ.", longer).
+ * This only catches obvious paste mistakes; Google's own check decides if a key works.
+ */
 export function looksLikeKey(k: string): boolean {
-  return /^AIza[0-9A-Za-z_-]{35}$/.test(k.trim());
+  const t = k.trim();
+  return /^AIza[0-9A-Za-z_-]{35}$/.test(t) || /^AQ\.[0-9A-Za-z._-]{20,400}$/.test(t);
 }
 
 export type KeyCheck = { ok: true } | { ok: false; reason: "format" | "invalid" | "not_enabled" | "quota" | "network" };
@@ -28,7 +33,7 @@ export async function checkKey(key: string, fetcher: typeof fetch = fetch): Prom
 }
 
 export const KEY_PROBLEM: Record<Exclude<KeyCheck, { ok: true }>["reason"], string> = {
-  format: "That doesn't look like a Gemini key yet. It starts with AIza and is 39 characters long.",
+  format: "That doesn't look like a Gemini key yet. It starts with AQ. or AIza. Copy the whole key from AI Studio and paste it here.",
   invalid: "Google didn't accept this key. Copy it again from AI Studio and paste it here.",
   not_enabled: "This key's project doesn't have the Gemini API turned on. In AI Studio, create the key again and choose “Create API key in new project”.",
   quota: "This key has used up today's free allowance. It will work again tomorrow, or you can connect another key.",

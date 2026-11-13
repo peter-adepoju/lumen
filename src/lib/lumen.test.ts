@@ -68,6 +68,9 @@ describe("gemini key", () => {
     expect(looksLikeKey(" " + KEY + " ")).toBe(true);
     expect(looksLikeKey("AIza123")).toBe(false);
     expect(looksLikeKey("sk-" + "x".repeat(36))).toBe(false);
+    expect(looksLikeKey("AQ.Ab8RN6" + "Kx_9-z".repeat(10))).toBe(true); // newer AI Studio keys
+    expect(looksLikeKey("AQ.short")).toBe(false);
+    expect(looksLikeKey("AQ.Ab8RN6 has spaces in it and more text")).toBe(false);
   });
   it("explains why Google refused a key", async () => {
     const res = (status: number, body: unknown) => (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
