@@ -28,6 +28,11 @@ Lumen runs on each person's own tools:
 | Progress: streak, lumens and level, 12-week heatmap, levels per area, drill trends, and what Lumen knows about you (editable) | Done |
 | News: a daily brief per followed topic from your trusted sources (websites or X accounts, set on You), labelled Confirmed, Reported, Rumour, Fixture or Research; same story once; every link checked | Done |
 | Unwind: a few films, series or documentaries each week, fun first with something useful inside; on Today from Friday to Sunday or every 7th streak day | Done |
+| Weekly review on Sundays: the week in numbers, private reflection, star areas for next week; keeps the streak | Done |
+| Works offline and installs as an app (service worker, phone icons, shortcuts) | Done |
+| Reminders: a daily calendar event (Google Calendar or .ics) and a notification while Lumen is open or installed | Done |
+| News from X: an X account as a trusted source allows only that account's posts, shown inside Lumen | Done |
+| Play: Pairs (built from your flashcards) and Target (reach a number with + − × ÷) | Done |
 
 The full product spec and the clickable prototype are linked from the project conversation.
 

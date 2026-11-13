@@ -21,6 +21,7 @@ export default function Today() {
   const day = today();
   const streak = stats ? currentStreak(stats, day) : 0;
   const doneToday = stats?.lastDay === day;
+  const reviewed = (stats?.sessions ?? []).some(x => x.day === day && x.area === "review");
   const lv = level(stats?.lumens ?? 0);
   // This page renders only on the device (after the store loads), so reading the clock and storage up front is safe.
   const [now] = useState(() => new Date());
@@ -69,6 +70,11 @@ export default function Today() {
                 <Chip>Weekly review</Chip>
                 <h2 className="text-[25px] lg:text-[34px]">Look back on your week</h2>
                 <p className="text-[14px] text-muted">Sunday is for reflection: what went well, what was hard, and one focus for next week.</p>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+                  <p className="text-[13px] text-muted">{reviewed ? "✓ Week reviewed. Enjoy your Sunday." : "About 10 minutes · keeps your streak"}</p>
+                  {reviewed ? <Link href="/review" className="rounded-full border border-border px-3.5 py-1.5 text-[13.5px] font-medium hover:bg-surface-2">See your review</Link>
+                    : <Link href="/review" className="rounded-full bg-primary px-4 py-2 text-[14px] font-medium text-on-primary hover:opacity-90">Start the review</Link>}
+                </div>
               </>
             ) : p.planMode === "I choose each day" && !focus ? (
               <>
@@ -129,18 +135,24 @@ export default function Today() {
             </ul>
           </Card>
 
-          {news.length > 0 && (
+          {news.length > 0 && p.steps["News brief"] && (
             <>
               <SectionTitle right="Trusted sources only">Your news</SectionTitle>
               <NewsBrief topics={news} />
             </>
           )}
 
-          {unwindTime(now, streak) && (
+          {p.steps["Unwind picks"] && unwindTime(now, streak) && (
             <>
               <SectionTitle right={<Link href="/unwind" className="underline underline-offset-4">Unwind</Link>}>Time off</SectionTitle>
               <UnwindList compact />
             </>
+          )}
+          {p.steps.Games && (
+            <Link href="/play" className="flex items-center justify-between gap-3 rounded-[14px] border border-border bg-surface px-4 py-3 hover:border-gold">
+              <span><span className="font-medium">Take a break</span><br /><span className="text-[13px] text-muted">Pairs and Target: quick games that still train something.</span></span>
+              <span className="text-[13px] underline underline-offset-4">Play</span>
+            </Link>
           )}
         </aside>
       </div>

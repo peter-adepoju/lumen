@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { BottomNav, SiteFooter, SiteHeader } from "@/components/nav";
 import { store, useStore } from "@/lib/store/store";
 import { useTheme } from "@/lib/theme";
+import { useReminder, useServiceWorker } from "@/components/pwa";
 
 /**
  * Two layouts from one set of pages:
@@ -14,6 +15,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const s = useStore();
   const router = useRouter();
   useTheme();
+  useServiceWorker();
+  useReminder();
   useEffect(() => { store.init().then(() => { if (!store.get("profile")) router.replace("/setup"); }); }, [router]);
   if (!s.loaded || !s.get("profile")) return <main className="grid min-h-dvh place-items-center"><div className="orb size-12" aria-label="Loading" /></main>;
   return (

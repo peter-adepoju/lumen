@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Area, NewsItem, NewsSet, NewsStatus } from "@/lib/model";
 import { cleanNews, newsPrompt } from "@/lib/practice-ai";
 import { AI_PROBLEM, AiError, generateJson } from "@/lib/gemini";
@@ -34,7 +34,38 @@ export async function fetchBrief(key: string, topic: Area, day = today()): Promi
   return set;
 }
 
+/** The post's id when a story links to a single X post. */
+export function xPostId(url: string): string | null {
+  const m = /^https:\/\/(?:www\.|mobile\.)?(?:x|twitter)\.com\/[A-Za-z0-9_]{1,15}\/status\/(\d{5,25})/.exec(url);
+  return m ? m[1] : null;
+}
+
+/**
+ * Shows an X post inside Lumen: X's own embed in a frame, with tracking off and
+ * no timeline, so you read the post without opening X or signing in.
+ */
+function XPost({ id }: { id: string }) {
+  const [h, setH] = useState(420);
+  const frame = useRef<HTMLIFrameElement>(null);
+  useEffect(() => {
+    const on = (e: MessageEvent) => {
+      if (e.origin !== "https://platform.twitter.com" || e.source !== frame.current?.contentWindow) return;
+      try {
+        const d = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
+        const p = d?.["twttr.embed"];
+        if (p?.method === "twttr.private.resize" && p.params?.[0]?.height) setH(Math.min(1200, Math.ceil(p.params[0].height)));
+      } catch {}
+    };
+    window.addEventListener("message", on);
+    return () => window.removeEventListener("message", on);
+  }, []);
+  const [dark] = useState(() => { const t = document.documentElement.dataset.theme; return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches; });
+  return <iframe ref={frame} title="Post on X" src={`https://platform.twitter.com/embed/Tweet.html?id=${id}&dnt=true&hideThread=true&theme=${dark ? "dark" : "light"}&lang=en`} style={{ height: h }} className="w-full max-w-[550px] rounded-[12px] border-0" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" loading="lazy" />;
+}
+
 function Story({ n }: { n: NewsItem }) {
+  const [show, setShow] = useState(false);
+  const post = xPostId(n.url);
   return (
     <li className="flex flex-col gap-1 border-t border-border py-2.5 first:border-t-0 first:pt-0">
       <div className="flex items-center gap-2 text-[11.5px]">
@@ -43,6 +74,7 @@ function Story({ n }: { n: NewsItem }) {
       </div>
       <a href={n.url} target="_blank" rel="noopener noreferrer" className="font-medium leading-snug hover:underline hover:underline-offset-4">{n.title}</a>
       {n.summary && <p className="text-[13px] text-muted">{n.summary}</p>}
+      {post && (show ? <XPost id={post} /> : <button onClick={() => setShow(true)} className="self-start text-[12.5px] underline underline-offset-4">Show the post</button>)}
     </li>
   );
 }

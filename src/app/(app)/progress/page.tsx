@@ -55,7 +55,7 @@ export default function Progress() {
   const sessions = stats?.sessions ?? [];
   const lv = level(stats?.lumens ?? 0);
   const grid = heatmap(sessions, day, 12);
-  const activity = areaActivity(sessions);
+  const activity = areaActivity(sessions.filter(x => x.area !== "review"));
   const drills = s.get("drills") ?? [];
   const feedback = s.get("feedback") ?? [];
   const added = s.get("added") ?? [];

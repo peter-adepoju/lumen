@@ -46,19 +46,29 @@ export function newsPrompt(topic: string, sources: string[], blocked: Block[], d
     sources.length ? `Use only these trusted sources: ${sources.join(", ")}. If none has news, return [].` : `Use only official accounts and established outlets with a strong record. No gossip sites, aggregators, fan blogs or content farms.`,
     blocked.length ? `Never include anything matching: ${blocked.map(b => b.value).join("; ")}.` : "",
     `If several outlets report the same story, include it once. Label each story: Confirmed (officially announced), Reported (a credible outlet says so, not yet official), Rumour (unconfirmed), Fixture (a scheduled event), or Research (a study or report).`,
-    `Write each title and summary in your own words; do not copy headlines. The url must be the exact article page you used.`,
+    sources.some(x => /^(https?:\/\/)?(www\.)?(x|twitter)\.com\//i.test(x)) ? `For X accounts, use the account's own recent posts and link the exact post (https://x.com/<account>/status/<id>).` : "",
+    `Write each title and summary in your own words; do not copy headlines. The url must be the exact article page or post you used.`,
     `Reply with JSON only: [{"title": "...", "summary": "one or two sentences", "status": "Confirmed|Reported|Rumour|Fixture|Research", "source": "outlet name", "url": "https://...", "date": "YYYY-MM-DD"}]`,
   ].filter(Boolean).join("\n");
 }
 
 export function cleanNews(raw: unknown, topic: string, sources: string[]): NewsItem[] {
   const seen = new Set<string>();
-  const allowed = sources.map(s => s.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, ""));
+  // "x.com/ManUtd" allows only that account's posts; "bbc.co.uk" allows the site and its subdomains.
+  const allowed = sources.map(s => s.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/^twitter\.com/, "x.com").replace(/\/+$/, ""));
   return (Array.isArray(raw) ? raw : []).flatMap((n: Partial<NewsItem>) => {
     if (!n || typeof n.title !== "string" || typeof n.url !== "string" || !/^https:\/\//.test(n.url)) return [];
     let host = "";
     try { host = new URL(n.url).hostname.replace(/^www\./, "").toLowerCase(); } catch { return []; }
-    if (allowed.length && !allowed.some(a => a.includes(".") ? host === a || host.endsWith("." + a) : (n.source ?? "").toLowerCase().includes(a))) return [];
+    const path = new URL(n.url).pathname.toLowerCase();
+    if (host === "twitter.com") host = "x.com";
+    const ok = (a: string) => {
+      const [h, ...rest] = a.split("/"), sub = rest.join("/");
+      if (!h.includes(".")) return (n.source ?? "").toLowerCase().includes(a);
+      if (!(host === h || host.endsWith("." + h))) return false;
+      return !sub || path === "/" + sub || path.startsWith("/" + sub + "/");
+    };
+    if (allowed.length && !allowed.some(ok)) return [];
     const key = n.title.toLowerCase().replace(/\W+/g, " ").trim().slice(0, 60);
     if (seen.has(key)) return [];
     seen.add(key);

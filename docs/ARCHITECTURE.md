@@ -72,6 +72,14 @@ YouTube plays through the IFrame API on youtube-nocookie with related videos off
 - Unwind picks are cached per ISO week in `unwind.json`; "Not my thing" removes a pick and blocks the title so it never returns.
 - Progress is computed on the device from `stats.json`, `drills.json`, `feedback.json`, `added.json` and the library. "Forget" removes the matching ratings from `feedback.json`.
 
+## Weekly review, offline, reminders and games (`src/lib/review.ts`, `reminders.ts`, `games.ts`)
+
+- Sunday has no focus, so the weekly review (`/review`) counts as that day's session (`area: "review"`), which keeps streaks unbroken. Answers go to `journal.json` and are never sent to the AI.
+- Offline: `scripts/build-sw.mjs` writes `public/sw.js` from `scripts/sw.template.js` with a new version each build. On install it saves every app page and the scripts and styles they use. Pages are network-first with the saved copy as fallback; built files are cache-first; `/api/*` is never cached. Data was already on the device (IndexedDB), so the whole app works offline after one visit.
+- Reminders: no push server (that would need a server database of subscriptions). Instead, a daily calendar event (Google Calendar link or `.ics`) reminds people when Lumen is closed, and `useReminder` shows a notification through the service worker at the chosen time while Lumen is open or installed, if the day's session isn't done.
+- X posts: a source like `x.com/ManUtd` allows only that account's posts. Posts show in X's own embed frame with tracking off, only when the person taps "Show the post".
+- Games scores go to `games.json`. Target rounds are built by combining the given numbers, so every round can be solved.
+
 ## Design system
 
 Tokens live in `src/app/globals.css` (ivory `#F7F5F0`, charcoal `#17161C`, antique gold `#B08D4F`, plus a dark theme). Fonts are bundled from npm (`@fontsource`), so they work offline: Cormorant Garamond for headings, Jost for text, JetBrains Mono for numbers. Shared components are in `src/components/ui.tsx`.

@@ -7,6 +7,7 @@ import { store, useStore } from "@/lib/store/store";
 import { useTheme } from "@/lib/theme";
 import { KeyForm } from "@/components/key-form";
 import { NewsSources } from "@/components/news";
+import { InstallCard, ReminderCard } from "@/components/reminder";
 import Link from "next/link";
 import { SyncDot } from "@/components/sync-dot";
 import { Button, Card, Chip, cn, PageTitle, Row, Segmented, Switch } from "@/components/ui";
@@ -123,11 +124,18 @@ export default function You() {
         </form>
       </Card>
 
+      <ReminderCard p={p} />
+
       {p.areas.some(a => a.cat === "news") && <NewsSources topics={p.areas.filter(a => a.cat === "news")} />}
 
-      <Card className="flex items-center justify-between gap-3">
-        <div className="flex flex-col"><span className="eyebrow">Unwind</span><Link href="/unwind" className="text-[13px] underline underline-offset-4">Weekend films and series</Link></div>
+      <Card className="flex flex-wrap items-center gap-x-5 gap-y-2">
+        <span className="eyebrow">More</span>
+        <Link href="/unwind" className="text-[13.5px] underline underline-offset-4">Unwind</Link>
+        <Link href="/play" className="text-[13.5px] underline underline-offset-4">Play</Link>
+        <Link href="/review" className="text-[13.5px] underline underline-offset-4">Weekly review</Link>
       </Card>
+
+      <InstallCard />
 
       <Card className="flex items-center justify-between gap-3">
         <span className="eyebrow">Theme</span>

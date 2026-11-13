@@ -16,6 +16,8 @@ export interface Profile {
   areas: Area[];
   steps: Record<SessionPart, boolean>;
   createdAt: number;
+  /** A daily reminder at a local clock time, e.g. "19:00". */
+  reminder?: { on: boolean; time: string };
 }
 
 export type SessionPart = "Warm-up" | "Learn" | "Practise" | "Reflect" | "News brief" | "Today's reading" | "Unwind picks" | "Games";
@@ -93,6 +95,9 @@ export interface Card { id: string; area: string; front: string; back: string; s
 export type DrillKind = "digit-span" | "odd-one-out" | "quiz";
 export interface DrillScore { kind: DrillKind; area?: string; score: number; out?: number; day: string; at: number }
 
+/* ---------- Games ---------- */
+export interface GameScore { kind: "pairs" | "target"; score: number; day: string; at: number }
+
 /* ---------- News and Unwind ---------- */
 export type NewsStatus = "Confirmed" | "Reported" | "Rumour" | "Fixture" | "Research";
 export interface NewsItem { id: string; topic: string; title: string; summary: string; status: NewsStatus; source: string; url: string; date?: string }
@@ -119,6 +124,7 @@ export interface Docs {
   news: NewsSet[];
   newsSources: Record<string, string[]>;
   unwind: UnwindSet[];
+  games: GameScore[];
 }
 export type DocName = keyof Docs;
 

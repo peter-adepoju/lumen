@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   description: "Grow a little every day. Lumen learns what you want to get better at and brings the right videos, books, podcasts and practice into one calm place.",
   applicationName: "Lumen",
   appleWebApp: { capable: true, title: "Lumen", statusBarStyle: "default" },
-  icons: { icon: "/icon.svg", apple: "/icon.svg" },
+  icons: { icon: [{ url: "/icon.svg", type: "image/svg+xml" }, { url: "/icon-192.png", sizes: "192x192", type: "image/png" }], apple: "/apple-icon.png" },
 };
 
 export const viewport: Viewport = {
