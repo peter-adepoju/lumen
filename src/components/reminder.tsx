@@ -4,6 +4,7 @@ import type { Profile } from "@/lib/model";
 import { dailyIcs, googleCalendarUrl } from "@/lib/reminders";
 import { store } from "@/lib/store/store";
 import { Button, Card, Switch } from "./ui";
+import { InstallButton, installHelp, useInstall } from "./install";
 
 function download(name: string, text: string, type: string) {
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click();
@@ -50,14 +51,19 @@ export function ReminderCard({ p }: { p: Profile }) {
   );
 }
 
-/** On You: how to install Lumen as an app, and that it works offline. */
+/** On You: install Lumen as an app on this phone or computer, and that it works offline. */
 export function InstallCard() {
-  const [standalone] = useState(() => typeof window !== "undefined" && window.matchMedia?.("(display-mode: standalone)").matches);
-  const [ios] = useState(() => typeof navigator !== "undefined" && /iPhone|iPad|iPod/.test(navigator.userAgent));
+  const state = useInstall();
+  const [ua] = useState(() => (typeof navigator === "undefined" ? "" : navigator.userAgent));
   return (
-    <Card className="flex flex-col gap-1.5">
+    <Card className="flex flex-col gap-2">
       <span className="eyebrow mb-1">App</span>
-      <p className="text-[14px]">{standalone ? "Lumen is installed on this device." : ios ? "In Safari, tap Share, then Add to Home Screen." : "In Chrome or Edge, choose Install Lumen from the address bar or the menu."}</p>
+      {state === "installed" ? <p className="text-[14px]">Lumen is installed on this device.</p> : (
+        <>
+          <p className="text-[14px]">Install Lumen on this {/Mobi|Android|iPhone|iPad/.test(ua) ? "phone" : "computer"}: it opens in its own window from your {/Mobi|Android|iPhone|iPad/.test(ua) ? "home screen" : "taskbar, Start menu or Dock"}, like any app.</p>
+          {state === "ready" ? <InstallButton className="self-start" /> : <p className="text-[13px] text-muted">{installHelp(ua)}</p>}
+        </>
+      )}
       <p className="text-[12.5px] text-muted">Lumen works offline once you&apos;ve opened it: your plan, library, flashcards, games and notes. AI picks, news and new links need a connection, and changes sync to your Drive when you&apos;re back online.</p>
     </Card>
   );

@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "./ui";
 import { SyncDot } from "./sync-dot";
 import { LightOrb, useLight } from "./light";
+import { InstallButton } from "./install";
 
 const TABS = [
   { href: "/today", label: "Today", icon: <><circle cx="12" cy="12" r="4.5" /><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" /></> },
@@ -59,6 +60,7 @@ export function SiteHeader() {
         </nav>
         <div className="flex items-center gap-3">
           <SyncDot showLabel />
+          <InstallButton />
           <Link href="/you" aria-current={path.startsWith("/you") ? "page" : undefined}
             className={cn("inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[14px] transition", path.startsWith("/you") ? "border-fg" : "border-border hover:bg-surface-2")}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden><circle cx="12" cy="8.5" r="4" /><path d="M4 20.5c1.5-4 4.5-5.5 8-5.5s6.5 1.5 8 5.5" /></svg>
