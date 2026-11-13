@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { classify, isPrivateAddress, itemId, youtubeIds } from "./links";
-import { extractJson, generate, AiError } from "./gemini";
+import { extractJson, generate, AiError, resetModelSkips } from "./gemini";
 import { blockedBy, buildPrompt, findPicks, keep, picksFor, savePickSet, wantedKinds, type Suggestion } from "./recs";
 import { completeSession, currentStreak, emptyStats, level } from "./stats";
 import { defaultProfile, makeArea, type Item } from "./model";
@@ -41,7 +41,9 @@ describe("AI replies", () => {
   });
   it("turns Google's errors into plain reasons", async () => {
     const f = (status: number) => (async () => new Response("{}", { status })) as unknown as typeof fetch;
-    await expect(generate("k", "hi", { fetcher: f(429) })).rejects.toMatchObject({ reason: "quota" });
+    resetModelSkips();
+    await expect(generate("k", "hi", { fetcher: f(429), wait: async () => {} })).rejects.toMatchObject({ reason: "quota" });
+    resetModelSkips();
     await expect(generate("k", "hi", { fetcher: f(400) })).rejects.toMatchObject({ reason: "key" });
     await expect(generate("k", "hi", { fetcher: f(500) })).rejects.toBeInstanceOf(AiError);
   });

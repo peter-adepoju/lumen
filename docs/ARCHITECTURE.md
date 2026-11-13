@@ -80,6 +80,10 @@ YouTube plays through the IFrame API on youtube-nocookie with related videos off
 - X posts: a source like `x.com/ManUtd` allows only that account's posts. Posts show in X's own embed frame with tracking off, only when the person taps "Show the post".
 - Games scores go to `games.json`. Target rounds are built by combining the given numbers, so every round can be solved.
 
+## When Gemini says "too many requests" (`src/lib/gemini.ts`)
+
+Google answers 429 for different reasons, and each free model has its own allowance. `generate` reads Google's reason: a per-minute limit is waited out (using Google's retry delay, at most 20 seconds) and retried; if only the Search tool is limited, it answers without search (links are still checked); a daily limit, or a model not offered for free to that key ("limit: 0"), moves on to the next model in `MODELS`. Refusing models are skipped on that device for six hours. Only when every model refuses does the person see a message, and it says whether to wait a minute or until tomorrow.
+
 ## Your light (`src/lib/light.ts`, `components/light.tsx`)
 
 The orb on Today and in the site header follows what the person did. A session or review today makes it shine (level 1); practice, a game or reading alone keeps it lit (0.92). Learned yesterday: waiting (0.85). Each full day missed dims it (0.62, 0.45, 0.32, then 0.22) and after 7 missed days it is an ember (0.12) that flickers but never goes out. The level is scaled by how many of the last 7 days had learning (0.8 to 1). CSS reads it as `--glow` and sets brightness, colour, glow size and breathing speed, with slow transitions so a session visibly relights it. Progress explains the rules and shows the last 7 days.
