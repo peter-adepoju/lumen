@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Area, NewsItem, NewsSet, NewsStatus } from "@/lib/model";
 import { cleanNews, newsPrompt } from "@/lib/practice-ai";
-import { AI_PROBLEM, AiError, generateJson } from "@/lib/gemini";
+import { generateJson, aiProblem } from "@/lib/gemini";
 import { today } from "@/lib/recs";
 import { store, useStore } from "@/lib/store/store";
 import { Button, Card, cn } from "./ui";
@@ -96,7 +96,7 @@ export function NewsBrief({ topics }: { topics: Area[] }) {
     for (const t of missing) {
       setBusy(t.name);
       try { await fetchBrief(ai.key, t, day); }
-      catch (e) { setErr(e instanceof AiError ? AI_PROBLEM[e.reason] : `Couldn't get news for ${t.name}.`); break; }
+      catch (e) { setErr(aiProblem(e, `Couldn't get news for ${t.name}.`)); break; }
     }
     setBusy(null);
   }

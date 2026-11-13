@@ -64,6 +64,18 @@ export default function You() {
           </div>
           {editKey && <KeyForm onDone={() => setEditKey(false)} />}
           {ai?.mode === "own" && !editKey && <button className="self-start text-[12.5px] text-muted underline underline-offset-4" onClick={() => store.set("ai", { mode: "none" })}>Remove my key</button>}
+          <details className="text-[12.5px] text-muted">
+            <summary className="cursor-pointer">Key not working?</summary>
+            <div className="mt-2 flex flex-col gap-1.5">
+              <p>If Lumen says Google is giving your key <strong className="text-fg">no free requests</strong> (&ldquo;limit: 0&rdquo;), Google has set this key&apos;s project to have no free allowance. Waiting won&apos;t fix it. Try, in order:</p>
+              <ol className="flex list-decimal flex-col gap-1 pl-5">
+                <li>In <a className="underline underline-offset-2" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">AI Studio → API keys</a>, delete the key, create a new one with &ldquo;Create API key in new project&rdquo;, and connect it here.</li>
+                <li>Open the key&apos;s usage chart in AI Studio and check its rate limits: a Flash model should show a free daily limit above 0.</li>
+                <li>If every model still shows 0, Google wants a billing account on the key&apos;s project. Add one in AI Studio (Set up billing). Flash-Lite costs a tiny fraction of a cent per request, and you can set a budget alert.</li>
+              </ol>
+              <p>Lumen always tries every Gemini model your key can use before showing an error.</p>
+            </div>
+          </details>
         </div>
       </Card>
 

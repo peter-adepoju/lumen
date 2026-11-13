@@ -82,7 +82,7 @@ YouTube plays through the IFrame API on youtube-nocookie with related videos off
 
 ## When Gemini says "too many requests" (`src/lib/gemini.ts`)
 
-Google answers 429 for different reasons, and each free model has its own allowance. `generate` reads Google's reason: a per-minute limit is waited out (using Google's retry delay, at most 20 seconds) and retried; if only the Search tool is limited, it answers without search (links are still checked); a daily limit, or a model not offered for free to that key ("limit: 0"), moves on to the next model in `MODELS`. Refusing models are skipped on that device for six hours. Only when every model refuses does the person see a message, and it says whether to wait a minute or until tomorrow.
+Google answers 429 for different reasons, and each free model has its own allowance. `generate` reads Google's reason: a per-minute limit is waited out (using Google's retry delay, at most 20 seconds) and retried; if only the Search tool is limited, it answers without search (links are still checked); a daily limit, or a model not offered for free to that key ("limit: 0"), moves on to the next model. The models come from Google's own list for the key (`modelsFor`, cached a day), keeping text Flash models with the `-latest` aliases first, so retired model names are never tried; `MODELS` is only a fallback. If every model reports "limit: 0", the error says the key has no free allowance (a Google account setting) and You → AI explains the fixes. Refusing models are skipped on that device for six hours. Only when every model refuses does the person see a message, and it says whether to wait a minute or until tomorrow.
 
 ## Your light (`src/lib/light.ts`, `components/light.tsx`)
 

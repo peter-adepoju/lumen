@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { KIND_LABEL, type Item, type ItemKind } from "@/lib/model";
 import { focusFor } from "@/lib/plan";
 import { findPicks, picksFor, savePickSet, today } from "@/lib/recs";
-import { AI_PROBLEM, AiError } from "@/lib/gemini";
+import { AiError, aiProblem } from "@/lib/gemini";
 import { store, useStore } from "@/lib/store/store";
 import { ItemCard, ItemSheet, pct } from "@/components/items";
 import { AddLink } from "@/components/add-link";
@@ -36,7 +36,7 @@ export default function Learn() {
       const prev = fresh ? (picksFor(store.get("picks"), area.id)?.items ?? []) : [];
       await store.set("picks", savePickSet(store.get("picks"), { area: area.id, day: today(), items: [...items, ...prev.filter(x => !items.some(i => i.id === x.id))].slice(0, 16), at: Date.now() }));
     } catch (e) {
-      setProblem(e instanceof AiError ? AI_PROBLEM[e.reason] : (e as Error).message === "slow_down" ? "Too many checks at once. Wait a minute and try again." : "Couldn't find picks right now. Try again in a moment.");
+      setProblem(e instanceof AiError ? aiProblem(e) : (e as Error).message === "slow_down" ? "Too many checks at once. Wait a minute and try again." : "Couldn't find picks right now. Try again in a moment.");
     } finally { setBusy(false); }
   }, [area, ai]);
 

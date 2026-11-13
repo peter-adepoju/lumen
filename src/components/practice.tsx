@@ -4,14 +4,14 @@ import type { Area, Card as CardT, DrillKind, Grade } from "@/lib/model";
 import { digits, dueCards, newCard, oddGrid, previewIntervals, review } from "@/lib/practice";
 import { makeCards, quiz } from "@/lib/practice-ai";
 import type { Question } from "@/lib/session-ai";
-import { AI_PROBLEM, AiError } from "@/lib/gemini";
+import { aiProblem } from "@/lib/gemini";
 import { addLumens } from "@/lib/stats";
 import { today } from "@/lib/recs";
 import { itemId } from "@/lib/links";
 import { store, useStore } from "@/lib/store/store";
 import { Button, Card, cn, Pill } from "./ui";
 
-const problem = (e: unknown) => (e instanceof AiError ? AI_PROBLEM[e.reason] : "Something went wrong. Try again.");
+const problem = (e: unknown) => aiProblem(e);
 
 async function score(kind: DrillKind, value: number, out?: number, area?: string) {
   await store.update("drills", d => [...(d ?? []), { kind, score: value, out, area, day: today(), at: Date.now() }].slice(-1000));

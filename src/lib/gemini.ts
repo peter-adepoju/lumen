@@ -41,12 +41,13 @@ export const KEY_PROBLEM: Record<Exclude<KeyCheck, { ok: true }>["reason"], stri
 };
 
 export class AiError extends Error {
-  constructor(public reason: "quota" | "busy" | "key" | "network" | "empty" | "other", public detail?: string) { super(reason); }
+  constructor(public reason: "quota" | "busy" | "no_free" | "key" | "network" | "empty" | "other", public detail?: string) { super(reason); }
 }
 
 export const AI_PROBLEM: Record<AiError["reason"], string> = {
   quota: "Your Gemini key has reached Google's free daily limit on every model Lumen can use. It resets within a day.",
   busy: "Google is limiting how fast your key can ask right now. Wait a minute and try again.",
+  no_free: "Google isn't giving this Gemini key any free requests (it reports a limit of 0). This happens with some new keys and isn't something waiting fixes. See You → AI for what to do.",
   key: "Google didn't accept your Gemini key. Check it under You → Your tools.",
   network: "Couldn't reach Google. Check your connection and try again.",
   empty: "The AI didn't return anything useful. Try again.",
@@ -54,11 +55,46 @@ export const AI_PROBLEM: Record<AiError["reason"], string> = {
 };
 
 /**
- * The free models Lumen tries, in order. Google gives each model its own free
- * allowance, so when one is used up (or not offered to a key) the next usually works.
- * The "-latest" names follow Google's current models; the fixed names are fallbacks.
+ * Used when Google's model list can't be read. The "-latest" names always point at
+ * Google's current Flash models; fixed version names get retired over time.
  */
-export const MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"];
+export const MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest"];
+
+interface ListedModel { name?: string; supportedGenerationMethods?: string[] }
+
+/**
+ * Orders the text models a key can use, best free choices first: the "-latest" Flash
+ * aliases, then Flash and Flash-Lite by newest version, then previews. Skips image,
+ * speech, live, embedding and other special-purpose models.
+ */
+export function pickModels(listed: ListedModel[]): string[] {
+  const names = listed
+    .filter(m => m.supportedGenerationMethods?.includes("generateContent"))
+    .map(m => String(m.name ?? "").replace(/^models\//, ""))
+    .filter(n => /^gemini-/.test(n) && /flash/.test(n) && !/image|tts|audio|live|embed|vision|robotics|computer|native|thinking/.test(n));
+  const version = (n: string) => parseFloat(n.match(/gemini-(\d+(?:\.\d+)?)/)?.[1] ?? "0");
+  const rank = (n: string) => (n.endsWith("-latest") ? 0 : /preview|exp/.test(n) ? 2 : 1);
+  return [...new Set(names)].sort((a, b) => rank(a) - rank(b) || version(b) - version(a) || Number(/lite/.test(a)) - Number(/lite/.test(b)) || a.localeCompare(b)).slice(0, 8);
+}
+
+let listed: { at: number; models: string[] } | null = null;
+/** The models this key can use, from Google's own list (cached for a day). Falls back to MODELS. */
+export async function modelsFor(key: string, fetcher: typeof fetch = fetch): Promise<string[]> {
+  if (!listed) { try { const c = JSON.parse(localStorage.getItem("lumen:ai:models") ?? "null"); if (c?.models?.length) listed = c; } catch {} }
+  if (listed && Date.now() - listed.at < 24 * 3600_000) return listed.models;
+  try {
+    const r = await fetcher(`${BASE}/models?pageSize=200`, { headers: { "x-goog-api-key": key } });
+    if (r.ok) {
+      const models = pickModels(((await r.json()) as { models?: ListedModel[] }).models ?? []);
+      if (models.length) {
+        listed = { at: Date.now(), models };
+        try { localStorage.setItem("lumen:ai:models", JSON.stringify(listed)); } catch {}
+        return models;
+      }
+    }
+  } catch {}
+  return MODELS;
+}
 
 export interface RateLimit { kind: "minute" | "day" | "unavailable" | "search" | "unknown"; retryMs?: number; message: string }
 
@@ -92,7 +128,14 @@ function isSkipped(model: string): boolean {
   return t != null && Date.now() - t < SKIP_MS;
 }
 /** Forgets which models refused (used by tests, and harmless otherwise). */
-export function resetModelSkips() { skipped.clear(); try { localStorage.removeItem("lumen:ai:skip"); } catch {} }
+export function resetModelSkips() { skipped.clear(); listed = null; try { localStorage.removeItem("lumen:ai:skip"); localStorage.removeItem("lumen:ai:models"); } catch {} }
+
+/** The message to show for an AI error, with Google's own words when they help. */
+export function aiProblem(e: unknown, fallback = "Something went wrong. Try again."): string {
+  if (!(e instanceof AiError)) return fallback;
+  const said = (e.reason === "no_free" || e.reason === "quota") && e.detail ? ` Google said: “${e.detail.replace(/\s+/g, " ").slice(0, 220)}”` : "";
+  return AI_PROBLEM[e.reason] + said;
+}
 
 const sleep = (ms: number, signal?: AbortSignal) => new Promise<void>((res, rej) => {
   const t = setTimeout(res, ms);
@@ -108,10 +151,10 @@ type GenOpts = { model?: string; signal?: AbortSignal; search?: boolean; fetcher
  */
 export async function generate(key: string, prompt: string, opts: GenOpts = {}): Promise<string> {
   const fetcher = opts.fetcher ?? fetch, wait = opts.wait ?? ((ms: number) => sleep(ms, opts.signal));
-  const models = opts.model ? [opts.model] : MODELS;
+  const models = opts.model ? [opts.model] : await modelsFor(key, fetcher);
   const usable = models.filter(m => !isSkipped(m));
   const order = usable.length ? usable : models; // if everything was skipped earlier, try again from the top
-  let search = !!opts.search, sawMinute = false, last: RateLimit | null = null;
+  let search = !!opts.search, sawMinute = false, last: RateLimit | null = null, refusals = 0, noFree = 0;
 
   for (const model of order) {
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -143,6 +186,7 @@ export async function generate(key: string, prompt: string, opts: GenOpts = {}):
           const ms = Math.min(rl.retryMs ?? 4000 * (attempt + 1), 20_000);
           if (attempt < 2) { await wait(ms); continue; }
         }
+        refusals++; if (rl.kind === "unavailable") noFree++;
         skip(model); break;                                                         // daily limit or not free for this key: next model
       }
       if (res.status === 400 && /not found|not supported|unsupported/i.test(JSON.stringify(body))) break;
@@ -151,6 +195,7 @@ export async function generate(key: string, prompt: string, opts: GenOpts = {}):
       throw new AiError("other", `${res.status}`);
     }
   }
+  if (refusals && noFree === refusals) throw new AiError("no_free", last?.message);
   throw new AiError(sawMinute ? "busy" : "quota", last?.message);
 }
 

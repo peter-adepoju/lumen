@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useState } from "react";
 import type { UnwindPick, UnwindSet } from "@/lib/model";
 import { isoWeek, unwindPicks } from "@/lib/practice-ai";
-import { AI_PROBLEM, AiError } from "@/lib/gemini";
+import { aiProblem } from "@/lib/gemini";
 import { store, useStore } from "@/lib/store/store";
 import { Button, Card, Chip } from "./ui";
 
@@ -46,7 +46,7 @@ export function UnwindList({ compact }: { compact?: boolean }) {
       const avoid = [...sets.flatMap(x => x.items.map(i => i.title)), ...(store.get("blocked") ?? []).filter(b => b.type === "item").map(b => b.value)];
       const items = await unwindPicks(ai.key, store.get("profile")!, avoid);
       await saveWeek({ week, items, at: 0 });
-    } catch (e) { setErr(e instanceof AiError ? AI_PROBLEM[e.reason] : "Couldn't find picks. Try again."); }
+    } catch (e) { setErr(aiProblem(e, "Couldn't find picks. Try again.")); }
     finally { setBusy(false); }
   }
   async function skip(p: UnwindPick) {

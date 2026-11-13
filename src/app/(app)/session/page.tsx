@@ -7,7 +7,7 @@ import { dailyExtras, focusFor } from "@/lib/plan";
 import { findPicks, picksFor, savePickSet, today } from "@/lib/recs";
 import { exercise, review, warmUp, type Exercise, type Question, type Review } from "@/lib/session-ai";
 import { completeSession, level, LUMENS } from "@/lib/stats";
-import { AI_PROBLEM, AiError } from "@/lib/gemini";
+import { aiProblem } from "@/lib/gemini";
 import { store, useStore } from "@/lib/store/store";
 import { ItemSheet } from "@/components/items";
 import { Button, Card, Chip, cn } from "@/components/ui";
@@ -23,7 +23,7 @@ async function recordSession(area: string, d: Step[], minutes: number) {
 }
 
 interface StepProps { k: string; focus: Area; p: Profile; onNext: (mark?: boolean) => void }
-const problemText = (e: unknown) => (e instanceof AiError ? AI_PROBLEM[e.reason] : "Something went wrong. Try again.");
+const problemText = (e: unknown) => aiProblem(e);
 
 export default function Session() {
   const s = useStore();
