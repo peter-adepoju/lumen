@@ -80,6 +80,8 @@ export function PdfReader({ pdf, book, file, explain, startPanel }: PdfReaderPro
   const [near, setNear] = useState<Set<number>>(new Set([1, 2]));
   const [panel, setPanel] = useState<Panel | null>(startPanel ?? null);
   const [sel, setSel] = useState<Sel | null>(null);
+  // While you write a note, the selection is kept here: typing in the note box clears the page's selection.
+  const [drafting, setDrafting] = useState<Sel | null>(null);
   const [openHl, setOpenHl] = useState<{ id: string; x: number; y: number } | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [query, setQuery] = useState<Query>({ text: "", page: null, idx: 0 });
@@ -249,10 +251,10 @@ export function PdfReader({ pdf, book, file, explain, startPanel }: PdfReaderPro
     return () => { document.removeEventListener("selectionchange", on); if (t) clearTimeout(t); };
   }, []);
 
-  const createHighlights = (color: string, note = "") => {
-    if (!sel) return 0;
+  const createHighlights = (color: string, note = "", from: Sel | null = sel) => {
+    if (!from) return 0;
     const group = uid(), made: Highlight[] = [];
-    for (const [n, rects] of sel.rects) made.push({ id: uid(), group, ch: 0, p: n - 1, s: 0, e: 0, color, note, text: sel.texts.get(n) ?? "", at: Date.now(), page: n, rects });
+    for (const [n, rects] of from.rects) made.push({ id: uid(), group, ch: 0, p: n - 1, s: 0, e: 0, color, note, text: from.texts.get(n) ?? "", at: Date.now(), page: n, rects });
     saveState(cur => ({ ...cur, hl: [...cur.hl, ...made] }));
     document.getSelection()?.removeAllRanges();
     setSel(null);
@@ -285,7 +287,7 @@ export function PdfReader({ pdf, book, file, explain, startPanel }: PdfReaderPro
       else if (e.key === "-") setZoomScale(scale / 1.15);
       else if (e.key === "0") fit();
       else if (e.key === "b") toggleBookmark();
-      else if (e.key === "Escape") { setPanel(null); setOpenHl(null); setSel(null); }
+      else if (e.key === "Escape") { setPanel(null); setOpenHl(null); setSel(null); setDrafting(null); }
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
@@ -344,7 +346,9 @@ export function PdfReader({ pdf, book, file, explain, startPanel }: PdfReaderPro
           </div>
         )}
       </div>
-      {sel && <SelectionBar sel={sel} title={book.title} create={createHighlights} onExplain={explainSel} say={say} />}
+      {sel && !drafting && <SelectionBar sel={sel} title={book.title} create={createHighlights} onNote={() => setDrafting(sel)} onExplain={explainSel} say={say} />}
+      {drafting && <NoteForm sel={drafting} onCancel={() => setDrafting(null)}
+        onSave={(color, note) => { if (createHighlights(color, note, drafting)) say(note ? "Highlight with note saved" : "Highlighted"); setDrafting(null); }} />}
       {openHl && openHlRow && <HighlightEditor key={openHlRow.id} hl={openHlRow} x={openHl.x} y={openHl.y} title={book.title}
         update={p => updateHl(openHlRow.id, p)} remove={() => { removeHl(openHlRow.id); setOpenHl(null); }} onClose={() => setOpenHl(null)} say={say} />}
       {toast && <div role="status" className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-full bg-fg px-4 py-2 text-[13px] text-bg">{toast}</div>}
@@ -405,32 +409,47 @@ function Toolbar(p: {
   );
 }
 
-function SelectionBar({ sel, title, create, onExplain, say }: { sel: Sel; title: string; create: (color: string, note?: string) => number; onExplain?: () => void; say: (t: string) => void }) {
-  const [noting, setNoting] = useState(false);
-  const [note, setNote] = useState("");
-  const top = Math.min(window.innerHeight - (noting ? 150 : 60), sel.y + 10), left = Math.max(8, Math.min(window.innerWidth - 330, sel.x - 160));
+function SelectionBar({ sel, title, create, onNote, onExplain, say }: { sel: Sel; title: string; create: (color: string, note?: string) => number; onNote: () => void; onExplain?: () => void; say: (t: string) => void }) {
+  const top = Math.min(window.innerHeight - 60, sel.y + 10), left = Math.max(8, Math.min(window.innerWidth - 330, sel.x - 160));
   const ib = "grid size-7 place-items-center rounded-full text-muted hover:bg-surface-2 hover:text-fg";
   return (
     <div role="toolbar" aria-label="Highlight" className="fixed z-50 w-[320px] max-w-[calc(100vw-16px)] rounded-[14px] border border-border bg-surface p-1.5" style={{ top, left }}
-      onMouseDown={e => { if (!(e.target as HTMLElement).closest("textarea")) e.preventDefault(); }}>
+      onMouseDown={e => e.preventDefault()}>
       <div className="flex items-center gap-1">
         {COLOR_KEYS.map(k => (
           <button key={k} title={`Highlight ${HL_NAMES[k]}`} aria-label={`Highlight ${HL_NAMES[k]}`} onClick={() => { if (create(k)) say("Highlighted"); }}
             className="size-6 shrink-0 rounded-full border-2 border-surface transition hover:scale-110" style={{ background: HL_COLORS[k] }} />
         ))}
         <span className="mx-0.5 h-5 w-px bg-border" />
-        <button title="Add a note" aria-label="Add note" onClick={() => setNoting(true)} className={ib}><Ic n="note" s={14} /></button>
+        <button title="Add a note" aria-label="Add note" onClick={onNote} className={ib}><Ic n="note" s={14} /></button>
         <button title="Copy with page" aria-label="Copy" onClick={() => { void navigator.clipboard.writeText(`“${sel.text}” — ${title}, p. ${[...sel.texts.keys()][0]}`); say("Copied"); }} className={ib}><Ic n="copy" s={14} /></button>
         {onExplain && <button title="Explain with AI" aria-label="Explain with AI" onClick={onExplain} className={cn(ib, "text-gold")}><Ic n="spark" s={14} /></button>}
       </div>
-      {noting && (
-        <form className="mt-1.5" onSubmit={e => { e.preventDefault(); if (create("yellow", note.trim())) say("Highlight with note saved"); }}>
-          <textarea autoFocus value={note} onChange={e => setNote(e.target.value)} rows={2} placeholder="Your note…" aria-label="Note"
-            className="w-full rounded-[10px] border border-border bg-surface px-2 py-1.5 text-[13px] outline-none focus:border-gold" />
-          <div className="flex justify-end"><button type="submit" className="rounded-full bg-primary px-3 py-1 text-[12.5px] font-medium text-on-primary">Save</button></div>
-        </form>
-      )}
     </div>
+  );
+}
+
+/** Writing a note on the selected text: the selection is kept while you type, and saving makes a highlight with your note. */
+function NoteForm({ sel, onSave, onCancel }: { sel: Sel; onSave: (color: string, note: string) => void; onCancel: () => void }) {
+  const [note, setNote] = useState("");
+  const [color, setColor] = useState("yellow");
+  const top = Math.max(8, Math.min(window.innerHeight - 260, sel.y + 10)), left = Math.max(8, Math.min(window.innerWidth - 330, sel.x - 160));
+  return (
+    <form role="dialog" aria-label="Note on this highlight" className="fixed z-50 flex w-[320px] max-w-[calc(100vw-16px)] flex-col gap-2 rounded-[14px] border border-border bg-surface p-3" style={{ top, left }}
+      onSubmit={e => { e.preventDefault(); onSave(color, note.trim()); }}>
+      <p className="line-clamp-2 border-l-2 pl-2 font-display text-[14px] leading-snug" style={{ borderColor: HL_COLORS[color] }}>{sel.text}</p>
+      <div className="flex items-center gap-1">
+        {COLOR_KEYS.map(k => <button type="button" key={k} aria-label={`Colour ${HL_NAMES[k]}`} aria-pressed={color === k} onClick={() => setColor(k)} className={cn("size-5 rounded-full border-2", color === k ? "border-fg" : "border-transparent")} style={{ background: HL_COLORS[k] }} />)}
+      </div>
+      <label htmlFor="pdf-note" className="sr-only">Your note</label>
+      <textarea id="pdf-note" autoFocus value={note} onChange={e => setNote(e.target.value)} rows={3} placeholder="Your thoughts, a question, how you'll use this…"
+        onKeyDown={e => { if (e.key === "Escape") onCancel(); if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) onSave(color, note.trim()); }}
+        className="w-full rounded-[10px] border border-border bg-surface px-2 py-1.5 text-[13.5px] outline-none focus:border-gold" />
+      <div className="flex justify-end gap-2">
+        <button type="button" onClick={onCancel} className="rounded-full px-3 py-1 text-[12.5px] text-muted hover:bg-surface-2">Cancel</button>
+        <button type="submit" className="rounded-full bg-primary px-3 py-1 text-[12.5px] font-medium text-on-primary">Save note</button>
+      </div>
+    </form>
   );
 }
 
