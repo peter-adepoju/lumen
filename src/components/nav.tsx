@@ -73,7 +73,7 @@ export function SiteFooter() {
     <footer className="hidden border-t border-border lg:block">
       <div className="mx-auto flex max-w-[1160px] items-center justify-between px-8 py-8 text-[13px] text-muted">
         <span><span className="font-display text-[17px] text-fg">Lumen</span> · Grow a little every day.</span>
-        <span>Your data lives in your own Google Drive. Free for everyone.</span>
+        <span className="flex gap-5"><span>Your data lives in your own Google Drive. Free for everyone.</span><a href="/privacy" className="hover:text-fg">Privacy</a><a href="/terms" className="hover:text-fg">Terms</a></span>
       </div>
     </footer>
   );

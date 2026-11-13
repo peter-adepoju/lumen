@@ -125,6 +125,7 @@ function SetupFlow() {
                 <GoogleMark /> Continue with Google
               </a>
               <button className="self-center text-[13px] text-muted underline underline-offset-4" onClick={async () => { await store.useMode("device"); go(1); }}>Use on this device only for now</button>
+              <p className="text-center text-[12px] text-muted">By continuing you agree to the <a href="/terms" className="underline underline-offset-2">terms</a> and <a href="/privacy" className="underline underline-offset-2">privacy policy</a>.</p>
             </>
           ) : me ? (
             <>
