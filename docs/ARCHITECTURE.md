@@ -94,6 +94,10 @@ The orb on Today and in the site header follows what the person did. A session o
 
 After Google sign-in, setup switches the device to Drive and waits for the first sync. If the account already has a profile in Drive (set up on another device), it goes straight to Today; otherwise setup continues. When a device first joins Drive (`joinChoice` in `store/merge.ts`), the account's own setup in Drive (profile, AI key, news sources, reader settings) wins over the device's copy; for every other document the newer copy wins, and documents only on the device are uploaded. Nothing in Drive is overwritten just because a device joined.
 
+## Today's reading (`readingPlan` in `books/library.ts`)
+
+Each day's pages start where you stopped in that book: before you open it today, that's your saved place; once you've started, it's where you were when the day began, so the range stays fixed while you read. The range runs for your daily page count (Reader settings → Daily pages) and stops at the end of the book. Only pages inside the range count toward "x of y pages"; you're done once you've read them all or moved past the last one. Both readers record the pages you turn to each day (`readToday`) and where the day began (`todayFrom`).
+
 ## Design system
 
 Tokens live in `src/app/globals.css` (ivory `#F7F5F0`, charcoal `#17161C`, antique gold `#B08D4F`, plus a dark theme). Fonts are bundled from npm (`@fontsource`), so they work offline: Cormorant Garamond for headings, Jost for text, JetBrains Mono for numbers. Shared components are in `src/components/ui.tsx`.

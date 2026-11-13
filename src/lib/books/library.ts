@@ -2,7 +2,7 @@
 // The user's library. Each book is kept in Lumen's reading format on the device
 // (for offline reading) and, when signed in, in the Books folder of their Drive,
 // next to the original file they uploaded.
-import type { BookDoc, LibraryEntry, Shelf } from "../model";
+import type { BookDoc, LibraryEntry, ReadingState, Shelf } from "../model";
 import { idb } from "../store/idb";
 import { store } from "../store/store";
 import { itemId } from "../links";
@@ -132,4 +132,25 @@ export function todaysBook(lib: LibraryEntry[] | undefined, day: string): Librar
   const sorted = [...pool].sort((a, b) => a.addedAt - b.addedAt || a.id.localeCompare(b.id));
   const n = Math.floor(Date.parse(day + "T12:00:00Z") / 864e5);
   return sorted[n % sorted.length];
+}
+
+export interface ReadingPlan { from: number; to: number; total: number | null; read: number; size: number; done: boolean }
+
+/**
+ * Today's pages for a book: they start where you stopped in it (where you were when
+ * the day began, so the range doesn't move while you read) and run for your daily
+ * page count. Only pages inside that range count as read; you're done once you've
+ * read them all or moved past the last one.
+ */
+export function readingPlan(entry: LibraryEntry, st: ReadingState | undefined, day: string, perDay: number): ReadingPlan {
+  const total = entry.at?.total ?? null;
+  const startedToday = st?.day === day && st.todayFrom != null;
+  let from = startedToday ? st!.todayFrom! + 1 : entry.at?.page ?? 1;
+  if (total) from = Math.min(Math.max(1, from), total);
+  const to = total ? Math.min(total, from + perDay - 1) : from + perDay - 1;
+  const size = to - from + 1;
+  const pages = st?.day === day ? st.readToday : [];
+  const read = new Set(pages.filter(i => i + 1 >= from && i + 1 <= to)).size;
+  const now = entry.at?.page ?? from;
+  return { from, to, total, read: Math.min(size, read), size, done: read >= size || (startedToday && now > to) };
 }

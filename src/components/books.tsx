@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import type { LibraryEntry, Shelf } from "@/lib/model";
-import { moveBook, removeBook, todaysBook } from "@/lib/books/library";
+import { moveBook, readingPlan, removeBook, todaysBook } from "@/lib/books/library";
 import { today } from "@/lib/recs";
 import { useStore } from "@/lib/store/store";
 import { Button, Card, cn, SectionTitle } from "./ui";
@@ -60,10 +60,7 @@ export function TodaysReading({ compact = false }: { compact?: boolean }) {
       <p className="text-[13.5px] text-muted">Add a book you own, or download a free classic below. Lumen will plan a few pages for you each day.</p>
     </Card>
   );
-  const st = s.get("reading")?.[book.id];
-  const readToday = st?.day === day ? st.readToday.length : 0;
-  const done = Math.min(per, readToday);
-  const from = book.at ? book.at.page : 1;
+  const plan = readingPlan(book, s.get("reading")?.[book.id], day, per);
   return (
     <>
       {compact && <SectionTitle right={`${per} pages a day`}>Today&apos;s reading</SectionTitle>}
@@ -72,16 +69,16 @@ export function TodaysReading({ compact = false }: { compact?: boolean }) {
           <Cover book={book} className="w-[52px]" />
           <div className="min-w-0">
             <p className="font-medium">{book.title}</p>
-            <p className="text-[12.5px] text-muted">{book.author} · {done >= per ? "today's pages read" : `pages ${from}–${book.at ? Math.min(book.at.total, from + per - 1) : from + per - 1}`}{book.at?.chapter ? ` · ${book.at.chapter}` : ""}</p>
+            <p className="text-[12.5px] text-muted">{book.author} · {plan.done ? "today's pages read" : plan.from === plan.to ? `page ${plan.from}` : `pages ${plan.from}–${plan.to}`}{book.at?.chapter ? ` · ${book.at.chapter}` : ""}</p>
           </div>
         </div>
         <div>
-          <div className="flex justify-between text-[12.5px]"><span>{done} of {per} pages</span>{book.at && <span className="text-muted">{book.at.pct}% through the book</span>}</div>
-          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-surface-2"><div className="h-full bg-[var(--lang)]" style={{ width: `${(done / per) * 100}%` }} /></div>
+          <div className="flex justify-between text-[12.5px]"><span>{plan.done ? plan.size : plan.read} of {plan.size} page{plan.size === 1 ? "" : "s"}</span>{book.at && <span className="text-muted">{book.at.pct}% through the book</span>}</div>
+          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-surface-2"><div className="h-full bg-[var(--lang)]" style={{ width: `${((plan.done ? plan.size : plan.read) / plan.size) * 100}%` }} /></div>
         </div>
         <div className="flex items-center justify-between gap-3">
-          {done >= per ? <span className="text-[13px] font-medium text-[var(--lang)]">✓ Done for today</span> : <span />}
-          <Link href={`/read/${book.id}`} className="rounded-full bg-primary px-3.5 py-1.5 text-[13px] font-medium text-on-primary">{done >= per ? "Keep reading" : book.at ? "Continue" : "Start reading"}</Link>
+          {plan.done ? <span className="text-[13px] font-medium text-[var(--lang)]">✓ Done for today</span> : <span className="text-[12.5px] text-muted">{!book.at ? "From the first page" : plan.read > 0 ? `Today's pages start at page ${plan.from}` : `From page ${plan.from}, where you stopped`}</span>}
+          <Link href={`/read/${book.id}`} className="shrink-0 rounded-full bg-primary px-3.5 py-1.5 text-[13px] font-medium text-on-primary">{plan.done ? "Keep reading" : book.at ? `Continue at page ${book.at.page}` : "Start reading"}</Link>
         </div>
       </Card>
     </>
