@@ -128,3 +128,43 @@ describe("headings", () => {
     expect(t("BOOK III")).toBe("Book III");
   });
 });
+
+import { lookFromCss } from "./books/epub";
+describe("a book's own look", () => {
+  it("finds the page colour and text colour for html, body and the body's classes", () => {
+    const look = lookFromCss([
+      { css: "/* publisher */ html { background: #fff } body.calibre { background-color: #F4ECD8; color: #3b2f1e } p { color: red }", base: "OEBPS/styles.css" },
+    ], ["calibre"]);
+    expect(look).toEqual({ bg: "#F4ECD8", fg: "#3b2f1e" });
+  });
+  it("reads a background image (resolved against the stylesheet) and the colour in the shorthand", () => {
+    expect(lookFromCss([{ css: ".page { background: url('../images/paper.jpg') #efe6d2 no-repeat center / cover }", base: "OEBPS/css/book.css" }], ["page"]))
+      .toEqual({ bg: "#efe6d2", image: "OEBPS/images/paper.jpg" });
+  });
+  it("treats plain white or transparent as no background", () => {
+    expect(lookFromCss([{ css: "body { background-color: white; color: #000 }", base: "a.css" }], []).bg).toBeUndefined();
+    expect(lookFromCss([{ css: "body { background: rgba(255, 255, 255, 1) }", base: "a.css" }], []).bg).toBeUndefined();
+  });
+  it("ignores rules for other elements and classes the body doesn't have", () => {
+    expect(lookFromCss([{ css: ".dark { background: #111 } div body { background: #222 }", base: "a.css" }], ["light"])).toEqual({});
+  });
+  it("lets the body's own style attribute win", () => {
+    expect(lookFromCss([{ css: "body { background: #eee }", base: "a.css" }], [], "background-color: #fdf6e3").bg).toBe("#fdf6e3");
+  });
+});
+
+import { pageItems, pageText } from "./books/pdf";
+describe("real PDF pages", () => {
+  it("keeps each word box from the top of the page, and the page text matches the boxes exactly", () => {
+    const items = pageItems([
+      { str: "Hello", transform: [12, 0, 0, 12, 72, 700], height: 12, width: 30 },
+      { str: " ", transform: [12, 0, 0, 12, 102, 700], height: 12, width: 3 },
+      { str: "world", transform: [12, 0, 0, 12, 105, 700], height: 12, width: 31 },
+    ], 792);
+    expect(items).toEqual([["Hello", 72, 80, 30, 12], ["world", 105, 80, 31, 12]]);
+    const text = pageText(items);
+    expect(text).toBe("Hello world");
+    // every word sits at the offset the reader's highlights use
+    let at = 0; for (const it of items) { expect(text.slice(at, at + it[0].length)).toBe(it[0]); at += it[0].length + 1; }
+  });
+});

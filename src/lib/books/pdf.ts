@@ -1,9 +1,25 @@
 "use client";
-// Reads a PDF the user owns into reflowable chapters, so it gets the same
-// pages, highlights and notes as any other book. Runs in the browser with pdf.js.
-import type { BookChapter } from "../model";
+// Reads a PDF the user owns. Lumen shows its real pages, exactly as published, with
+// each page's words kept (with their positions) so highlights, notes, search and
+// read-aloud work on top of the page. Runs in the browser with pdf.js.
+import type { BookChapter, FixedPage } from "../model";
 
-interface TextItem { str: string; transform: number[]; height: number; hasEOL?: boolean }
+interface TextItem { str: string; transform: number[]; height: number; width?: number; hasEOL?: boolean }
+
+const r1 = (n: number) => Math.round(n * 10) / 10;
+
+/** A page's words with their boxes, measured from the top-left of the page, in reading order. */
+export function pageItems(items: TextItem[], pageH: number): FixedPage["items"] {
+  return items.filter(it => it.str && it.str.trim()).map(it => {
+    const h = Math.abs(it.height || it.transform[3] || 10);
+    return [it.str, r1(it.transform[4]), r1(pageH - it.transform[5] - h), r1(it.width ?? it.str.length * h * 0.5), r1(h)] as [string, number, number, number, number];
+  });
+}
+
+/** The page's text as Lumen stores it: each word box's text, separated by single spaces. */
+export function pageText(items: FixedPage["items"]): string {
+  return items.map((it, k) => it[0] + (k < items.length - 1 ? " " : "")).join("");
+}
 
 /** Groups a page's text pieces into lines, then lines into paragraphs by the gaps between them. */
 export function pageParagraphs(items: TextItem[]): string[] {
@@ -32,19 +48,19 @@ export function pageParagraphs(items: TextItem[]): string[] {
   return paras;
 }
 
-export async function parsePdf(data: ArrayBuffer): Promise<{ title: string; author: string; chapters: BookChapter[]; pages: number; cover?: Blob }> {
+export async function parsePdf(data: ArrayBuffer): Promise<{ title: string; author: string; chapters: BookChapter[]; pages: number; cover?: Blob; layout: "fixed" }> {
   const pdfjs = await import("pdfjs-dist");
   pdfjs.GlobalWorkerOptions.workerSrc = "/pdfjs/pdf.worker.min.mjs";
   const pdf = await pdfjs.getDocument({ data: new Uint8Array(data), cMapUrl: "/pdfjs/cmaps/", cMapPacked: true, standardFontDataUrl: "/pdfjs/standard_fonts/" }).promise;
   const info = ((await pdf.getMetadata().catch(() => null))?.info ?? {}) as { Title?: string; Author?: string };
 
-  const pageParas: string[][] = [];
+  const pages: FixedPage[] = [];
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
+    const vp = page.getViewport({ scale: 1 });
     const tc = await page.getTextContent();
-    pageParas.push(pageParagraphs(tc.items as TextItem[]));
+    pages.push({ w: r1(vp.width), h: r1(vp.height), n: i, items: pageItems(tc.items as TextItem[], vp.height) });
   }
-  if (pageParas.flat().join(" ").length < 200) throw new Error("scanned");
 
   // Chapters from the PDF's own bookmarks when it has them; otherwise every 10 pages.
   const starts: { page: number; title: string }[] = [];
@@ -57,17 +73,15 @@ export async function parsePdf(data: ArrayBuffer): Promise<{ title: string; auth
   }
   starts.sort((a, b) => a.page - b.page);
   const chapters: BookChapter[] = [];
+  const chapter = (title: string, from: number, to: number) => {
+    const ps = pages.slice(from - 1, to - 1);
+    if (ps.length) chapters.push({ title, sub: title, pages: ps, paras: ps.map(p => pageText(p.items)) });
+  };
   if (starts.length >= 2) {
     if (starts[0].page > 1) starts.unshift({ page: 1, title: "Opening" });
-    starts.forEach((s, i) => {
-      const paras = pageParas.slice(s.page - 1, (starts[i + 1]?.page ?? pdf.numPages + 1) - 1).flat();
-      if (paras.length) chapters.push({ title: s.title, sub: s.title, paras });
-    });
+    starts.forEach((s, i) => chapter(s.title, s.page, starts[i + 1]?.page ?? pdf.numPages + 1));
   } else {
-    for (let i = 0; i < pageParas.length; i += 10) {
-      const paras = pageParas.slice(i, i + 10).flat();
-      if (paras.length) chapters.push({ title: `Pages ${i + 1}–${Math.min(i + 10, pdf.numPages)}`, paras });
-    }
+    for (let i = 1; i <= pages.length; i += 10) chapter(`Pages ${i}–${Math.min(i + 9, pdf.numPages)}`, i, i + 10);
   }
 
   // A small cover: the first page, drawn to a canvas.
@@ -79,5 +93,5 @@ export async function parsePdf(data: ArrayBuffer): Promise<{ title: string; auth
     cover = await new Promise<Blob | undefined>(r => canvas.toBlob(b => r(b ?? undefined), "image/jpeg", 0.8));
   } catch {}
 
-  return { title: info.Title?.trim() || "", author: info.Author?.trim() || "", chapters, pages: pdf.numPages, cover };
+  return { title: info.Title?.trim() || "", author: info.Author?.trim() || "", chapters, pages: pdf.numPages, cover, layout: "fixed" };
 }

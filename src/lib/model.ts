@@ -65,9 +65,22 @@ export interface SessionRecord { day: string; area: string; steps: string[]; min
 export interface Stats { streak: number; best: number; lastDay: string | null; lumens: number; sessions: SessionRecord[] }
 
 /* ---------- Books ---------- */
-export interface BookChapter { title: string; sub?: string; paras: string[] }
+/**
+ * One real PDF page: its size in PDF points, and its words with their boxes
+ * ([text, x, y from the top, width, height]) for selecting and highlighting.
+ */
+export interface FixedPage { w: number; h: number; n: number; items: [string, number, number, number, number][] }
+/** In a fixed-layout book (a PDF), paras[i] is the text of pages[i], in the same order as its items. */
+export interface BookChapter { title: string; sub?: string; paras: string[]; pages?: FixedPage[] }
+/** The book's own look, from its publisher's stylesheet. Empty when it has none (Lumen's paper is used). */
+export interface BookLook { bg?: string; fg?: string; image?: string }
 /** A book in Lumen's reading format: plain paragraphs in chapters. Saved in the user's Drive as Books/<id>.json. */
-export interface BookDoc { id: string; title: string; author: string; note?: string; chapters: BookChapter[] }
+export interface BookDoc {
+  id: string; title: string; author: string; note?: string; chapters: BookChapter[];
+  /** "fixed": show the real pages (PDFs). Otherwise text flows into Lumen's pages. */
+  layout?: "fixed";
+  look?: BookLook;
+}
 export type Shelf = "active" | "reserve" | "finished";
 export interface LibraryEntry {
   id: string; title: string; author: string;

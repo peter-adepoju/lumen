@@ -21,6 +21,7 @@ async function shrinkCover(img: Blob): Promise<string | undefined> {
 
 async function saveBook(doc: BookDoc, entry: Omit<LibraryEntry, "shelf" | "addedAt">, original?: { blob: Blob; ext: string; mime: string }) {
   await idb.set("book:" + doc.id, doc);
+  if (original) await idb.set("file:" + doc.id, original.blob); // the real pages are drawn from this, offline too
   const drive = store.driveClient();
   if (drive) {
     await drive.writeJson(`Books/${doc.id}.json`, doc);
@@ -38,7 +39,7 @@ export async function importFile(file: File, onStep?: (s: string) => void): Prom
   const ext = file.name.toLowerCase().split(".").pop();
   if (file.size > MAX_UPLOAD) throw new ImportError("That file is over 60 MB. Try a smaller edition.");
   onStep?.("Reading the book…");
-  let parsed: { title: string; author: string; chapters: BookDoc["chapters"]; cover?: Blob };
+  let parsed: { title: string; author: string; chapters: BookDoc["chapters"]; cover?: Blob; layout?: "fixed"; look?: BookDoc["look"] };
   try {
     if (ext === "epub") parsed = await (await import("./epub")).parseEpub(file);
     else if (ext === "pdf") parsed = await (await import("./pdf")).parsePdf(await file.arrayBuffer());
@@ -46,11 +47,11 @@ export async function importFile(file: File, onStep?: (s: string) => void): Prom
   } catch (e) {
     if (e instanceof ImportError) throw e;
     const m = (e as Error).message;
-    throw new ImportError(m === "scanned" ? "This PDF is scanned pictures of pages, so there's no text to read. Try an EPUB or a text-based PDF." : m === "no_text" || m === "not_epub" ? "Lumen couldn't find the text in this file. It may be damaged or protected (DRM)." : "Lumen couldn't open this file. It may be damaged or protected (DRM).");
+    throw new ImportError(m === "no_text" || m === "not_epub" ? "Lumen couldn't find the text in this file. It may be damaged or protected (DRM)." : "Lumen couldn't open this file. It may be damaged or protected (DRM).");
   }
   const title = parsed.title || file.name.replace(/\.(epub|pdf)$/i, "");
   const id = "b" + itemId(`${title}|${parsed.author}|${file.size}`).slice(1);
-  const doc: BookDoc = { id, title, author: parsed.author || "Unknown author", chapters: parsed.chapters };
+  const doc: BookDoc = { id, title, author: parsed.author || "Unknown author", chapters: parsed.chapters, ...(parsed.layout ? { layout: parsed.layout } : {}), ...(parsed.look ? { look: parsed.look } : {}) };
   onStep?.(store.mode === "google" ? "Saving to your Drive…" : "Saving on this device…");
   await saveBook(doc, { id, title, author: doc.author, source: "upload", format: ext as "epub" | "pdf", cover: parsed.cover ? await shrinkCover(parsed.cover) : undefined, file: `Books/${id}.${ext}`, words: wordCount(doc.chapters) },
     { blob: file, ext: ext!, mime: ext === "pdf" ? "application/pdf" : "application/epub+zip" });
@@ -77,11 +78,48 @@ export async function addClassic(c: Classic): Promise<LibraryEntry> {
 /** Opens a book: from the device first, then from Drive (and keeps a copy for offline). */
 export async function loadBook(id: string): Promise<BookDoc | null> {
   const local = await idb.get<BookDoc>("book:" + id);
-  if (local) return local;
+  if (local) return upgrade(local);
   const drive = store.driveClient();
   const remote = drive ? await drive.readJson<BookDoc>(`Books/${id}.json`).catch(() => null) : null;
   if (remote) await idb.set("book:" + id, remote);
-  return remote;
+  return remote ? upgrade(remote) : null;
+}
+
+/** The original file the person added (EPUB or PDF): from the device, else from their Drive (then kept for offline). */
+export async function bookOriginal(id: string): Promise<Blob | null> {
+  const local = await idb.get<Blob>("file:" + id);
+  if (local) return local;
+  const entry = store.get("library")?.find(b => b.id === id), drive = store.driveClient();
+  if (!entry?.file || !drive) return null;
+  const blob = await drive.readBlob(entry.file).catch(() => null);
+  if (blob) await idb.set("file:" + id, blob);
+  return blob;
+}
+
+/**
+ * Books added before Lumen showed each book's own look: an EPUB gets its look from its
+ * stylesheet; a PDF switches to its real pages, unless it already has highlights or notes
+ * (their positions belong to the text view, so it keeps that).
+ */
+async function upgrade(doc: BookDoc): Promise<BookDoc> {
+  const entry = store.get("library")?.find(b => b.id === doc.id);
+  if (!entry || entry.source !== "upload") return doc;
+  const needLook = entry.format === "epub" && doc.look === undefined;
+  const r = store.get("reading")?.[doc.id];
+  const needPages = entry.format === "pdf" && doc.layout !== "fixed" && !(r?.hl?.length || r?.notes?.length);
+  if (!needLook && !needPages) return doc;
+  try {
+    const blob = await bookOriginal(doc.id);
+    if (!blob) return doc;
+    let next = doc;
+    if (needLook) next = { ...doc, look: await (await import("./epub")).epubLook(blob) };
+    if (needPages) { const p = await (await import("./pdf")).parsePdf(await blob.arrayBuffer()); next = { ...doc, chapters: p.chapters, layout: "fixed" }; }
+    await idb.set("book:" + doc.id, next);
+    const drive = store.driveClient();
+    if (drive) drive.writeJson(`Books/${doc.id}.json`, next).catch(() => {});
+    if (needPages) await store.update("reading", rd => { const all = { ...(rd ?? {}) }; if (all[doc.id]) all[doc.id] = { ...all[doc.id], ch: 0, p: 0, bookmarks: [] }; return all; });
+    return next;
+  } catch { return doc; }
 }
 
 export function moveBook(id: string, shelf: Shelf) {
@@ -92,6 +130,7 @@ export async function removeBook(id: string) {
   const entry = store.get("library")?.find(b => b.id === id);
   await store.update("library", lib => (lib ?? []).filter(b => b.id !== id));
   await idb.del("book:" + id);
+  await idb.del("file:" + id);
   const drive = store.driveClient();
   if (drive) { await drive.remove(`Books/${id}.json`).catch(() => {}); if (entry?.file) await drive.remove(entry.file).catch(() => {}); }
 }
