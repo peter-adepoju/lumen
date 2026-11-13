@@ -27,7 +27,7 @@ async function checked(items: NewsItem[]): Promise<NewsItem[]> {
 
 export async function fetchBrief(key: string, topic: Area, day = today()): Promise<NewsSet> {
   const sources = store.get("newsSources")?.[topic.id] ?? [];
-  const raw = await generateJson<unknown>(key, newsPrompt(topic.name, sources, store.get("blocked") ?? [], day), { search: true });
+  const raw = await generateJson<unknown>(key, newsPrompt(topic.name, sources, store.get("blocked") ?? [], day), { requireSearch: true });
   const items = await checked(cleanNews(raw, topic.id, sources));
   const set: NewsSet = { topic: topic.id, day, items, at: Date.now() };
   await store.update("news", l => [...(l ?? []).filter(s => !(s.topic === topic.id && s.day === day)), set].slice(-60));

@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { AiError, aiProblem, generate, MODELS, pickModels, readRateLimit, resetModelSkips } from "./gemini";
 
+// The order Lumen tries them in (Flash-Lite first): see pickModels.
+const ORDER = ["gemini-flash-lite-latest", "gemini-flash-latest", "gemini-9-flash"];
+
 const ok = (text = "hello") => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }] }));
 const limited = (quotaId: string, message = "Quota exceeded", retry?: string) => new Response(JSON.stringify({ error: { code: 429, message, details: [
   { "@type": "type.googleapis.com/google.rpc.QuotaFailure", violations: [{ quotaId, quotaMetric: "generativelanguage.googleapis.com/generate_content_free_tier_requests" }] },
@@ -38,17 +41,17 @@ describe("asking Gemini when it's busy or limited", () => {
   it("waits out a per-minute limit and retries the same model", async () => {
     const f = fake([() => limited("GenerateRequestsPerMinutePerProjectPerModel-FreeTier", "x", "3s"), () => ok("done")]);
     expect(await generate("k", "hi", { fetcher: f.fetcher, wait })).toBe("done");
-    expect(f.calls.map(c => c.model)).toEqual([LISTED[0], LISTED[0]]);
+    expect(f.calls.map(c => c.model)).toEqual([ORDER[0], ORDER[0]]);
     expect(waits).toEqual([3000]);
   });
   it("moves to the next free model when one is used up or not offered", async () => {
     const f = fake([() => limited("GenerateRequestsPerDayPerProjectPerModel-FreeTier", "limit: 0"), () => limited("GenerateRequestsPerDayPerProjectPerModel-FreeTier"), () => ok("from model 3")]);
     expect(await generate("k", "hi", { fetcher: f.fetcher, wait })).toBe("from model 3");
-    expect(f.calls.map(c => c.model)).toEqual(LISTED);
+    expect(f.calls.map(c => c.model)).toEqual(ORDER);
     // and remembers, so the next call starts at the model that worked
     const g = fake([() => ok()]);
     await generate("k", "hi", { fetcher: g.fetcher, wait });
-    expect(g.calls[0].model).toBe(LISTED[2]);
+    expect(g.calls[0].model).toBe(ORDER[2]);
   });
   it("answers without live search when only search is limited", async () => {
     const f = fake([() => limited("SearchGroundingRequestsPerDay-FreeTier"), () => ok("no search")]);
@@ -78,18 +81,35 @@ describe("asking Gemini when it's busy or limited", () => {
 });
 
 describe("choosing models from Google's list", () => {
-  it("keeps text Flash models, newest first, and drops special-purpose ones", () => {
+  it("keeps text models, Flash-Lite first (biggest free allowance), Gemma last, and drops special-purpose ones", () => {
     const m = (name: string, methods = ["generateContent"]) => ({ name: "models/" + name, supportedGenerationMethods: methods });
     expect(pickModels([
-      m("gemini-2.0-flash"), m("gemini-3.5-flash"), m("gemini-flash-latest"), m("gemini-3.5-flash-lite"), m("gemini-flash-lite-latest"),
-      m("gemini-3.5-flash-image"), m("gemini-3.5-flash-preview-tts"), m("gemini-3.5-pro"), m("text-embedding-005", ["embedContent"]), m("gemini-4-flash-preview"),
-    ])).toEqual(["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-2.0-flash", "gemini-4-flash-preview"]);
+      m("gemini-2.5-flash"), m("gemini-3.5-flash"), m("gemini-flash-latest"), m("gemini-3.5-flash-lite"), m("gemini-flash-lite-latest"),
+      m("gemini-3.5-flash-image"), m("gemini-3.5-flash-preview-tts"), m("gemini-3.5-pro"), m("text-embedding-005", ["embedContent"]),
+      m("gemini-4-flash-preview"), m("gemma-4-31b-it"), m("gemini-3.5-transcribe"),
+    ])).toEqual(["gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-flash-latest", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-4-flash-preview", "gemma-4-31b-it"]);
   });
-  it("treats 'check your plan and billing' on a key that never worked as no free allowance, without retrying", async () => {
-    const f = fake([() => limited("", "You exceeded your current quota, please check your plan and billing details.")]);
-    const e = await generate("k", "hi", { fetcher: f.fetcher, wait }).catch(x => x);
-    expect(e.reason).toBe("no_free");
-    expect(waits).toEqual([]);
-    expect(f.calls).toHaveLength(LISTED.length); // each model asked once
+});
+
+describe("Google Search on free keys", () => {
+  const billing = () => limited("", "You exceeded your current quota, please check your plan and billing details.");
+  it("asks the same model again without search when search is refused", async () => {
+    const f = fake([billing, () => ok("picks")]);
+    expect(await generate("k", "hi", { fetcher: f.fetcher, wait, search: true })).toBe("picks");
+    expect(f.calls).toEqual([{ model: ORDER[0], search: true }, { model: ORDER[0], search: false }]);
+    // and doesn't ask for search again for a while
+    const g = fake([() => ok()]);
+    await generate("k", "hi", { fetcher: g.fetcher, wait, search: true });
+    expect(g.calls[0].search).toBe(false);
+  });
+  it("for live news, tries Gemini 2.x first (free search) and never answers without search", async () => {
+    const f = fake([() => ok("news")], ["gemini-flash-lite-latest", "gemini-3.5-flash", "gemini-2.5-flash"]);
+    await generate("k", "hi", { fetcher: f.fetcher, wait, requireSearch: true });
+    expect(f.calls[0]).toEqual({ model: "gemini-2.5-flash", search: true });
+    resetModelSkips();
+    const g = fake([billing], ["gemini-flash-lite-latest", "gemini-3.5-flash"]);
+    const e = await generate("k", "hi", { fetcher: g.fetcher, wait, requireSearch: true }).catch(x => x);
+    expect(e.reason).toBe("no_search");
+    expect(g.calls.every(c => c.search)).toBe(true);
   });
 });

@@ -41,12 +41,13 @@ export const KEY_PROBLEM: Record<Exclude<KeyCheck, { ok: true }>["reason"], stri
 };
 
 export class AiError extends Error {
-  constructor(public reason: "quota" | "busy" | "no_free" | "key" | "network" | "empty" | "other", public detail?: string) { super(reason); }
+  constructor(public reason: "quota" | "busy" | "no_free" | "no_search" | "key" | "network" | "empty" | "other", public detail?: string) { super(reason); }
 }
 
 export const AI_PROBLEM: Record<AiError["reason"], string> = {
   quota: "Your Gemini key has reached Google's free daily limit on every model Lumen can use. It resets within a day.",
   busy: "Google is limiting how fast your key can ask right now. Wait a minute and try again.",
+  no_search: "Live news needs Google Search, and Google doesn't include Search free for your key's Gemini models right now. Lumen won't guess at news without it. Adding billing in AI Studio turns it on.",
   no_free: "Google isn't giving this Gemini key any free requests (it reports a limit of 0). This happens with some new keys and isn't something waiting fixes. See You → AI for what to do.",
   key: "Google didn't accept your Gemini key. Check it under You → Your tools.",
   network: "Couldn't reach Google. Check your connection and try again.",
@@ -63,18 +64,25 @@ export const MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest"];
 interface ListedModel { name?: string; supportedGenerationMethods?: string[] }
 
 /**
- * Orders the text models a key can use, best free choices first: the "-latest" Flash
- * aliases, then Flash and Flash-Lite by newest version, then previews. Skips image,
- * speech, live, embedding and other special-purpose models.
+ * Orders the text models a key can use, best free choices first. Flash-Lite comes
+ * before Flash because Google's free allowance for it is far larger (hundreds of
+ * requests a day rather than about twenty). Gemma, with a very large free allowance,
+ * is the last resort. Image, speech, live, embedding and other special models are skipped.
  */
 export function pickModels(listed: ListedModel[]): string[] {
   const names = listed
     .filter(m => m.supportedGenerationMethods?.includes("generateContent"))
     .map(m => String(m.name ?? "").replace(/^models\//, ""))
-    .filter(n => /^gemini-/.test(n) && /flash/.test(n) && !/image|tts|audio|live|embed|vision|robotics|computer|native|thinking/.test(n));
+    .filter(n => ((/^gemini-/.test(n) && /flash/.test(n)) || /^gemma-4/.test(n)) && !/image|tts|audio|live|embed|vision|robotics|computer|native|thinking|transcribe|translate/.test(n));
   const version = (n: string) => parseFloat(n.match(/gemini-(\d+(?:\.\d+)?)/)?.[1] ?? "0");
-  const rank = (n: string) => (n.endsWith("-latest") ? 0 : /preview|exp/.test(n) ? 2 : 1);
-  return [...new Set(names)].sort((a, b) => rank(a) - rank(b) || version(b) - version(a) || Number(/lite/.test(a)) - Number(/lite/.test(b)) || a.localeCompare(b)).slice(0, 8);
+  const rank = (n: string) => (/^gemma/.test(n) ? 4 : /preview|exp/.test(n) ? 3 : (/lite/.test(n) ? 0 : 2) + (n.endsWith("-latest") ? 0 : 0.5));
+  return [...new Set(names)].sort((a, b) => rank(a) - rank(b) || version(b) - version(a) || a.localeCompare(b)).slice(0, 14);
+}
+
+/** Google gives Search with Gemini 2.x models a free daily allowance, but (on many keys) none with Gemini 3 and newer. */
+export function searchFriendlyFirst(models: string[]): string[] {
+  const v = (n: string) => parseFloat(n.match(/gemini-(\d+(?:\.\d+)?)/)?.[1] ?? "0");
+  return [...models].sort((a, b) => Number(!(v(a) >= 2 && v(a) < 3)) - Number(!(v(b) >= 2 && v(b) < 3)));
 }
 
 let listed: { at: number; models: string[] } | null = null;
@@ -130,7 +138,7 @@ function isSkipped(model: string): boolean {
 }
 /** Forgets which models refused (used by tests, and harmless otherwise). */
 /** Forgets what Lumen learned about a key (which models refused, the model list, whether it worked). Called when the key changes. */
-export function resetModelSkips() { skipped.clear(); listed = null; try { for (const k of ["lumen:ai:skip", "lumen:ai:models", "lumen:ai:worked"]) localStorage.removeItem(k); } catch {} }
+export function resetModelSkips() { skipped.clear(); listed = null; searchRefusedAt = 0; try { for (const k of ["lumen:ai:skip", "lumen:ai:models", "lumen:ai:worked"]) localStorage.removeItem(k); } catch {} }
 
 /** The message to show for an AI error, with Google's own words when they help. */
 export function aiProblem(e: unknown, fallback = "Something went wrong. Try again."): string {
@@ -144,7 +152,17 @@ const sleep = (ms: number, signal?: AbortSignal) => new Promise<void>((res, rej)
   signal?.addEventListener("abort", () => { clearTimeout(t); rej(new DOMException("Aborted", "AbortError")); }, { once: true });
 });
 
-type GenOpts = { model?: string; signal?: AbortSignal; search?: boolean; fetcher?: typeof fetch; wait?: (ms: number) => Promise<void> };
+type GenOpts = {
+  model?: string; signal?: AbortSignal; fetcher?: typeof fetch; wait?: (ms: number) => Promise<void>;
+  /** Let Gemini use Google Search. If Google refuses search for the key, the answer comes without it. */
+  search?: boolean;
+  /** Search is essential (live news): never answer without it; fail with "no_search" instead. */
+  requireSearch?: boolean;
+};
+
+// When Google refuses Search for this key, later calls skip asking for it for a while.
+let searchRefusedAt = 0;
+const searchRecentlyRefused = () => Date.now() - searchRefusedAt < 6 * 3600_000;
 
 /**
  * Asks Gemini. With `search`, Gemini can look things up on Google Search, so suggestions are real and current.
@@ -155,8 +173,11 @@ export async function generate(key: string, prompt: string, opts: GenOpts = {}):
   const fetcher = opts.fetcher ?? fetch, wait = opts.wait ?? ((ms: number) => sleep(ms, opts.signal));
   const models = opts.model ? [opts.model] : await modelsFor(key, fetcher);
   const usable = models.filter(m => !isSkipped(m));
-  const order = usable.length ? usable : models; // if everything was skipped earlier, try again from the top
-  let search = !!opts.search, sawMinute = false, last: RateLimit | null = null, refusals = 0, noFree = 0;
+  const base = usable.length ? usable : models; // if everything was skipped earlier, try again from the top
+  const wantSearch = !!(opts.search || opts.requireSearch);
+  const order = wantSearch ? searchFriendlyFirst(base) : base;
+  let search = wantSearch && (opts.requireSearch || !searchRecentlyRefused());
+  let sawMinute = false, last: RateLimit | null = null, refusals = 0, noFree = 0, searchRefused = 0;
   let everWorked = false;
   try { everWorked = localStorage.getItem("lumen:ai:worked") === "1"; } catch {}
 
@@ -186,7 +207,14 @@ export async function generate(key: string, prompt: string, opts: GenOpts = {}):
       if (res.status === 404) break; // this model isn't offered any more: try the next
       if (res.status === 429) {
         const rl = readRateLimit(body); last = rl;
-        if (rl.kind === "search" && search) { search = false; continue; }          // answer without live search; links are still checked
+        // Google often refuses the Search tool (not the model) on free keys, sometimes with a generic
+        // "check your plan and billing" message. Ask the same model again without search,
+        // unless search is essential, in which case try a model whose search is free.
+        if (search && rl.kind !== "minute") {
+          searchRefusedAt = Date.now(); searchRefused++;
+          if (opts.requireSearch) break;
+          search = false; continue;
+        }
         if (rl.kind === "minute" || (rl.kind === "unknown" && attempt === 0)) {
           sawMinute = sawMinute || rl.kind === "minute";
           const ms = Math.min(rl.retryMs ?? 4000 * (attempt + 1), 20_000);
@@ -203,6 +231,7 @@ export async function generate(key: string, prompt: string, opts: GenOpts = {}):
       throw new AiError("other", `${res.status}`);
     }
   }
+  if (opts.requireSearch && searchRefused) throw new AiError("no_search", last?.message);
   if (refusals && noFree === refusals) throw new AiError("no_free", last?.message);
   throw new AiError(sawMinute ? "busy" : "quota", last?.message);
 }
