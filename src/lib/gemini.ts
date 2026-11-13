@@ -96,7 +96,7 @@ export async function modelsFor(key: string, fetcher: typeof fetch = fetch): Pro
   return MODELS;
 }
 
-export interface RateLimit { kind: "minute" | "day" | "unavailable" | "search" | "unknown"; retryMs?: number; message: string }
+export interface RateLimit { kind: "minute" | "day" | "unavailable" | "billing" | "search" | "unknown"; retryMs?: number; message: string }
 
 /** Reads why Google said 429: a per-minute limit (wait), a daily limit, a model not offered for free, or the search tool's own limit. */
 export function readRateLimit(body: unknown): RateLimit {
@@ -109,6 +109,7 @@ export function readRateLimit(body: unknown): RateLimit {
   const text = `${ids} ${message}`;
   let kind: RateLimit["kind"] = "unknown";
   if (/limit:\s*0\b/i.test(message)) kind = "unavailable";
+  else if (/plan and billing|billing details/i.test(message)) kind = "billing";
   else if (/search|grounding/i.test(ids)) kind = "search";
   else if (/PerDay|per day|daily/i.test(text)) kind = "day";
   else if (/PerMinute|per minute/i.test(text)) kind = "minute";
@@ -128,7 +129,8 @@ function isSkipped(model: string): boolean {
   return t != null && Date.now() - t < SKIP_MS;
 }
 /** Forgets which models refused (used by tests, and harmless otherwise). */
-export function resetModelSkips() { skipped.clear(); listed = null; try { localStorage.removeItem("lumen:ai:skip"); localStorage.removeItem("lumen:ai:models"); } catch {} }
+/** Forgets what Lumen learned about a key (which models refused, the model list, whether it worked). Called when the key changes. */
+export function resetModelSkips() { skipped.clear(); listed = null; try { for (const k of ["lumen:ai:skip", "lumen:ai:models", "lumen:ai:worked"]) localStorage.removeItem(k); } catch {} }
 
 /** The message to show for an AI error, with Google's own words when they help. */
 export function aiProblem(e: unknown, fallback = "Something went wrong. Try again."): string {
@@ -155,6 +157,8 @@ export async function generate(key: string, prompt: string, opts: GenOpts = {}):
   const usable = models.filter(m => !isSkipped(m));
   const order = usable.length ? usable : models; // if everything was skipped earlier, try again from the top
   let search = !!opts.search, sawMinute = false, last: RateLimit | null = null, refusals = 0, noFree = 0;
+  let everWorked = false;
+  try { everWorked = localStorage.getItem("lumen:ai:worked") === "1"; } catch {}
 
   for (const model of order) {
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -171,6 +175,8 @@ export async function generate(key: string, prompt: string, opts: GenOpts = {}):
         throw new AiError("network");
       }
       if (res.ok) {
+        try { localStorage.setItem("lumen:ai:worked", "1"); } catch {}
+        everWorked = true;
         const j = await res.json();
         const text = (j.candidates?.[0]?.content?.parts ?? []).map((p: { text?: string }) => p.text ?? "").join("");
         if (!text.trim()) throw new AiError("empty");
@@ -186,7 +192,9 @@ export async function generate(key: string, prompt: string, opts: GenOpts = {}):
           const ms = Math.min(rl.retryMs ?? 4000 * (attempt + 1), 20_000);
           if (attempt < 2) { await wait(ms); continue; }
         }
-        refusals++; if (rl.kind === "unavailable") noFree++;
+        refusals++;
+        // "limit: 0", or "check your plan and billing" on a key that has never worked: no free allowance at all.
+        if (rl.kind === "unavailable" || (rl.kind === "billing" && !everWorked)) noFree++;
         skip(model); break;                                                         // daily limit or not free for this key: next model
       }
       if (res.status === 400 && /not found|not supported|unsupported/i.test(JSON.stringify(body))) break;

@@ -85,5 +85,11 @@ describe("choosing models from Google's list", () => {
       m("gemini-3.5-flash-image"), m("gemini-3.5-flash-preview-tts"), m("gemini-3.5-pro"), m("text-embedding-005", ["embedContent"]), m("gemini-4-flash-preview"),
     ])).toEqual(["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-2.0-flash", "gemini-4-flash-preview"]);
   });
+  it("treats 'check your plan and billing' on a key that never worked as no free allowance, without retrying", async () => {
+    const f = fake([() => limited("", "You exceeded your current quota, please check your plan and billing details.")]);
+    const e = await generate("k", "hi", { fetcher: f.fetcher, wait }).catch(x => x);
+    expect(e.reason).toBe("no_free");
+    expect(waits).toEqual([]);
+    expect(f.calls).toHaveLength(LISTED.length); // each model asked once
+  });
 });
-

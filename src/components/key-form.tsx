@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { AI_STUDIO_URL, checkKey, KEY_PROBLEM, looksLikeKey } from "@/lib/gemini";
+import { AI_STUDIO_URL, checkKey, KEY_PROBLEM, looksLikeKey, resetModelSkips } from "@/lib/gemini";
 import { store } from "@/lib/store/store";
 import { Button } from "./ui";
 
@@ -20,6 +20,7 @@ export function KeyForm({ onDone }: { onDone: () => void }) {
     const r = await checkKey(key);
     setBusy(false);
     if (!r.ok) { setProblem(KEY_PROBLEM[r.reason]); return; }
+    resetModelSkips(); // a new key starts fresh: its own model list and limits
     await store.set("ai", { mode: "own", key: key.trim(), connectedAt: Date.now() });
     setKey("");
     onDone();
