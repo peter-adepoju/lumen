@@ -142,6 +142,7 @@ export default function You() {
 
       <Card className="flex flex-wrap items-center gap-x-5 gap-y-2">
         <span className="eyebrow">More</span>
+        <Link href="/news" className="text-[13.5px] underline underline-offset-4">News</Link>
         <Link href="/unwind" className="text-[13.5px] underline underline-offset-4">Unwind</Link>
         <Link href="/play" className="text-[13.5px] underline underline-offset-4">Play</Link>
         <Link href="/review" className="text-[13.5px] underline underline-offset-4">Weekly review</Link>

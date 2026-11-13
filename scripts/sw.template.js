@@ -1,7 +1,7 @@
 // Lumen's service worker: makes the app open and work offline.
 // Generated into public/sw.js by scripts/build-sw.mjs with a new version on every build.
 const VERSION = "__VERSION__";
-const PAGES = ["/today", "/learn", "/library", "/practice", "/progress", "/you", "/unwind", "/review", "/play", "/session", "/setup"];
+const PAGES = ["/today", "/learn", "/library", "/practice", "/progress", "/you", "/unwind", "/news", "/review", "/play", "/session", "/setup"];
 const SHELL = `lumen-shell-${VERSION}`, STATIC = "lumen-static", RUNTIME = `lumen-runtime-${VERSION}`;
 
 // Saves each page and every script and style it needs, so all of Lumen opens offline after one visit.

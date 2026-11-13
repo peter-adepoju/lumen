@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { Area, NewsItem, NewsSet, NewsStatus } from "@/lib/model";
 import { markFresh, rankPrompt, toStories, withoutBlocked, type Headline } from "@/lib/news";
@@ -6,6 +7,8 @@ import { generateJson } from "@/lib/gemini";
 import { today } from "@/lib/recs";
 import { store, useStore } from "@/lib/store/store";
 import { Button, Card, cn } from "./ui";
+
+const PREVIEW = 3; // stories per topic on Today
 
 const STATUS_STYLE: Record<NewsStatus, string> = {
   Confirmed: "border-success text-success",
@@ -26,9 +29,9 @@ export async function fetchBrief(key: string | undefined, topic: Area, day = tod
   if (!r.ok) throw new Error(r.status === 429 ? "slow_down" : "unavailable");
   const all = withoutBlocked(((await r.json()).items ?? []) as Headline[], store.get("blocked") ?? []);
   let raw: unknown = null;
-  if (key && all.length) { try { raw = await generateJson<unknown>(key, rankPrompt(topic.name, all)); } catch {} }
+  if (key && all.length) { try { raw = await generateJson<unknown>(key, rankPrompt(topic.name, all, 10)); } catch {} }
   const before = store.get("news")?.find(s => s.topic === topic.id && s.day === day);
-  const set: NewsSet = { topic: topic.id, day, items: markFresh(toStories(raw, all, topic.id), before?.items), at: Date.now() };
+  const set: NewsSet = { topic: topic.id, day, items: markFresh(toStories(raw, all, topic.id, 10), before?.items), at: Date.now() };
   await store.update("news", l => [...(l ?? []).filter(s => !(s.topic === topic.id && s.day === day)), set].slice(-60));
   return set;
 }
@@ -80,7 +83,8 @@ function Story({ n }: { n: NewsItem }) {
 }
 
 /** Today's brief for each followed news topic: a few labelled stories from trusted sources, fetched once a day. */
-export function NewsBrief({ topics }: { topics: Area[] }) {
+/** The news brief. `compact` (on Today) shows the top few stories per topic with "See all"; the News page shows everything. */
+export function NewsBrief({ topics, compact = false }: { topics: Area[]; compact?: boolean }) {
   const s = useStore();
   const ai = s.get("ai");
   const day = today();
@@ -91,6 +95,7 @@ export function NewsBrief({ topics }: { topics: Area[] }) {
   const missing = topics.filter(t => !has(t.id));
 
   const loaded = topics.map(t => has(t.id)).filter((x): x is NewsSet => !!x);
+  const total = loaded.reduce((n, x) => n + x.items.length, 0), shown = loaded.reduce((n, x) => n + Math.min(PREVIEW, x.items.length), 0);
   const updated = loaded.length ? Math.min(...loaded.map(x => x.at)) : null;
   const time = (t: number) => new Date(t).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit" });
 
@@ -120,9 +125,9 @@ export function NewsBrief({ topics }: { topics: Area[] }) {
         const set = has(t.id);
         if (!set) return null;
         return (
-          <div key={t.id} className="flex flex-col gap-2">
+          <div key={t.id} className="flex flex-col gap-2 border-t border-border pt-3 first:border-t-0 first:pt-0">
             <p className="eyebrow">{t.name}</p>
-            {set.items.length ? <ul className="flex flex-col">{set.items.map(n => <Story key={n.id} n={n} />)}</ul>
+            {set.items.length ? <ul className="flex flex-col">{(compact ? set.items.slice(0, PREVIEW) : set.items).map(n => <Story key={n.id} n={n} />)}</ul>
               : <p className="text-[13px] text-muted">No news from your trusted sources in the last two days.</p>}
             {ai?.mode !== "own" && set.items.length > 0 && <p className="text-[12px] text-muted">Newest headlines. With your Gemini key, Lumen picks the most important and labels them.</p>}
           </div>
@@ -135,6 +140,9 @@ export function NewsBrief({ topics }: { topics: Area[] }) {
         </div>
       )}
       {err && <p role="alert" className="text-[13px] text-danger">{err}</p>}
+      {compact && total > shown && (
+        <Link href="/news" className="self-start text-[13px] underline underline-offset-4">See all {total} stories</Link>
+      )}
     </Card>
   );
 }

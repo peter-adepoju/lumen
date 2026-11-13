@@ -143,8 +143,8 @@ export default function Today() {
 
           {news.length > 0 && p.steps["News brief"] && (
             <>
-              <SectionTitle right="Trusted sources only">Your news</SectionTitle>
-              <NewsBrief topics={news} />
+              <SectionTitle right={<Link href="/news" className="underline underline-offset-4">See all</Link>}>Your news</SectionTitle>
+              <NewsBrief topics={news} compact />
             </>
           )}
 
