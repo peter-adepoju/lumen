@@ -22,6 +22,14 @@ export function rankPrompt(topic: string, items: Headline[], max = 5): string {
   ].join("\n\n");
 }
 
+/** Marks the stories you didn't have before a refresh (by link, or by headline when the link changed). */
+export function markFresh(next: NewsItem[], before: NewsItem[] | undefined): NewsItem[] {
+  if (!before) return next;
+  const key = (t: string) => t.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+  const ids = new Set(before.map(n => n.id)), titles = new Set(before.map(n => key(n.title)));
+  return next.map(n => (ids.has(n.id) || titles.has(key(n.title)) ? { ...n, fresh: false } : { ...n, fresh: true }));
+}
+
 /** Turns the AI's picks into stories, keeping each headline's real link and outlet. Falls back to the newest headlines. */
 export function toStories(raw: unknown, items: Headline[], topic: string, max = 5): NewsItem[] {
   const picks = (Array.isArray(raw) ? raw : []).filter((p): p is { i: number; status?: string } => !!p && Number.isInteger(p.i) && p.i >= 0 && p.i < items.length);

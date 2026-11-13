@@ -6,7 +6,7 @@ export interface Headline { title: string; url: string; source: string; sourceUr
 
 const UA = "Mozilla/5.0 (compatible; LumenNews/1.0)";
 const cache = new Map<string, { at: number; v: Headline[] }>();
-const FRESH = 15 * 60_000;
+const FRESH = 5 * 60_000; // a refresh is at most five minutes behind Google News
 
 /** Website sources ("bbc.co.uk", "https://www.manutd.com/news") as bare hosts. X accounts can't be read through Google News. */
 export function siteSources(sources: string[]): string[] {

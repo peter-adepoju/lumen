@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const sources = (req.nextUrl.searchParams.get("sources") ?? "").split(",").map(s => s.trim()).filter(Boolean).slice(0, 20);
   if (topic.length < 2) return NextResponse.json({ error: "no_topic" }, { status: 400 });
   try {
-    return NextResponse.json({ items: await headlines(topic, sources) }, { headers: { "cache-control": "public, s-maxage=900, stale-while-revalidate=1800" } });
+    return NextResponse.json({ items: await headlines(topic, sources) }, { headers: { "cache-control": "public, s-maxage=300, stale-while-revalidate=600" } });
   } catch {
     return NextResponse.json({ error: "unavailable" }, { status: 502 });
   }

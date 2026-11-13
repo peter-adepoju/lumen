@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { Area, NewsItem, NewsSet, NewsStatus } from "@/lib/model";
-import { rankPrompt, toStories, withoutBlocked, type Headline } from "@/lib/news";
+import { markFresh, rankPrompt, toStories, withoutBlocked, type Headline } from "@/lib/news";
 import { generateJson } from "@/lib/gemini";
 import { today } from "@/lib/recs";
 import { store, useStore } from "@/lib/store/store";
@@ -27,7 +27,8 @@ export async function fetchBrief(key: string | undefined, topic: Area, day = tod
   const all = withoutBlocked(((await r.json()).items ?? []) as Headline[], store.get("blocked") ?? []);
   let raw: unknown = null;
   if (key && all.length) { try { raw = await generateJson<unknown>(key, rankPrompt(topic.name, all)); } catch {} }
-  const set: NewsSet = { topic: topic.id, day, items: toStories(raw, all, topic.id), at: Date.now() };
+  const before = store.get("news")?.find(s => s.topic === topic.id && s.day === day);
+  const set: NewsSet = { topic: topic.id, day, items: markFresh(toStories(raw, all, topic.id), before?.items), at: Date.now() };
   await store.update("news", l => [...(l ?? []).filter(s => !(s.topic === topic.id && s.day === day)), set].slice(-60));
   return set;
 }
@@ -68,6 +69,7 @@ function Story({ n }: { n: NewsItem }) {
     <li className="flex flex-col gap-1 border-t border-border py-2.5 first:border-t-0 first:pt-0">
       <div className="flex items-center gap-2 text-[11.5px]">
         <span className={cn("rounded-full border px-2 py-px", STATUS_STYLE[n.status])}>{n.status}</span>
+        {n.fresh && <span className="rounded-full bg-[var(--gold-soft)] px-2 py-px font-medium text-fg">New</span>}
         <span className="truncate text-muted">{n.source}{n.date ? ` · ${new Date(n.date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}</span>
       </div>
       <a href={n.url} target="_blank" rel="noopener noreferrer" className="font-medium leading-snug hover:underline hover:underline-offset-4">{n.title}</a>
@@ -88,9 +90,13 @@ export function NewsBrief({ topics }: { topics: Area[] }) {
   const has = (id: string) => sets.find(x => x.topic === id && x.day === day);
   const missing = topics.filter(t => !has(t.id));
 
-  async function load() {
+  const loaded = topics.map(t => has(t.id)).filter((x): x is NewsSet => !!x);
+  const updated = loaded.length ? Math.min(...loaded.map(x => x.at)) : null;
+  const time = (t: number) => new Date(t).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit" });
+
+  async function load(list: Area[] = missing) {
     setErr(null);
-    for (const t of missing) {
+    for (const t of list) {
       setBusy(t.name);
       try { await fetchBrief(ai?.mode === "own" ? ai.key : undefined, t, day); }
       catch (e) { setErr((e as Error).message === "slow_down" ? "Too many requests at once. Try again in a minute." : `Couldn't reach the news for ${t.name}. Check your connection and try again.`); break; }
@@ -100,6 +106,16 @@ export function NewsBrief({ topics }: { topics: Area[] }) {
 
   return (
     <Card className="flex flex-col gap-3">
+      {loaded.length > 0 && (
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[12px] text-muted" role="status">{busy ? `Updating ${busy}…` : `Updated ${time(updated!)}`}</p>
+          <button onClick={() => void load(topics)} disabled={!!busy} aria-label="Refresh the news"
+            className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-[12.5px] font-medium hover:bg-surface-2 disabled:opacity-50">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden className={busy ? "animate-spin" : ""}><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4h-4" /></svg>
+            {busy ? "Refreshing" : "Refresh"}
+          </button>
+        </div>
+      )}
       {topics.map(t => {
         const set = has(t.id);
         if (!set) return null;
@@ -115,7 +131,7 @@ export function NewsBrief({ topics }: { topics: Area[] }) {
       {missing.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 first:border-t-0 first:pt-0">
           <p className="text-[13px] text-muted">{busy ? `Checking ${busy}…` : `Today's brief: ${missing.map(m => m.name).join(", ")}`}</p>
-          <Button size="sm" variant="ghost" disabled={!!busy} onClick={load}>{busy ? "Reading the news…" : "Get today's brief"}</Button>
+          <Button size="sm" variant="ghost" disabled={!!busy} onClick={() => void load()}>{busy ? "Reading the news…" : "Get today's brief"}</Button>
         </div>
       )}
       {err && <p role="alert" className="text-[13px] text-danger">{err}</p>}

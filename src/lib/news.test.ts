@@ -50,3 +50,16 @@ describe("the brief", () => {
     expect(toStories(null, items, "mu").map(x => x.title)).toEqual(items.map(h => h.title));
   });
 });
+
+import { markFresh } from "./news";
+describe("refreshing the news", () => {
+  const story = (id: string, title: string) => ({ id, topic: "mu", title, summary: "", status: "Reported" as const, source: "S", url: "https://x/" + id });
+  it("marks only stories you didn't have before", () => {
+    const before = [story("a", "Club names new head coach"), story("b", "Weekend fixture preview")];
+    const next = [story("c", "Club names new head coach!"), story("b", "Weekend fixture preview"), story("d", "Captain signs new deal")];
+    expect(markFresh(next, before).map(n => [n.id, n.fresh])).toEqual([["c", false], ["b", false], ["d", true]]);
+  });
+  it("marks nothing on the first brief of the day", () => {
+    expect(markFresh([story("a", "One")], undefined)[0].fresh).toBeUndefined();
+  });
+});

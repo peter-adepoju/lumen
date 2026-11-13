@@ -117,7 +117,8 @@ export interface GameScore { kind: "pairs" | "target"; score: number; day: strin
 
 /* ---------- News and Unwind ---------- */
 export type NewsStatus = "Confirmed" | "Reported" | "Rumour" | "Fixture" | "Research";
-export interface NewsItem { id: string; topic: string; title: string; summary: string; status: NewsStatus; source: string; url: string; date?: string }
+/** `fresh`: arrived with your latest refresh (it wasn't in the brief you had before). */
+export interface NewsItem { id: string; topic: string; title: string; summary: string; status: NewsStatus; source: string; url: string; date?: string; fresh?: boolean }
 export interface NewsSet { topic: string; day: string; items: NewsItem[]; at: number }
 export interface UnwindPick { id: string; title: string; kind: "series" | "film" | "documentary"; year?: string; why: string; area?: string; where?: string; url: string }
 export interface UnwindSet { week: string; items: UnwindPick[]; at: number }
