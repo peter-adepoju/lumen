@@ -80,6 +80,33 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 500; letter-spacing:
 }
 @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
 
+/* Your light: the orb follows how much you've learned lately (see src/lib/light.ts).
+   --glow runs from 0.1 (an ember) to 1 (shining): it sets brightness, colour, the size
+   of the glow and how fast it breathes. Changes fade in over a second or two. */
+.light-orb {
+  --glow: .8;
+  position: relative;
+  opacity: calc(.28 + .72 * var(--glow));
+  filter: saturate(calc(.05 + 1.1 * var(--glow))) brightness(calc(.78 + .34 * var(--glow)));
+  box-shadow:
+    0 0 calc(2px + 22px * var(--glow)) color-mix(in srgb, var(--gold) calc(4% + 46% * var(--glow)), transparent),
+    0 0 calc(4px + 70px * var(--glow)) color-mix(in srgb, var(--gold) calc(2% + 26% * var(--glow)), transparent);
+  animation: light-breathe calc(8s - 4.5s * var(--glow)) ease-in-out infinite;
+  transition: opacity 1.8s ease, filter 1.8s ease, box-shadow 1.8s ease;
+}
+.light-orb::after {
+  content: ""; position: absolute; inset: -42%; border-radius: 9999px; pointer-events: none;
+  background: radial-gradient(circle, color-mix(in srgb, var(--gold) 40%, transparent) 0%, transparent 62%);
+  opacity: calc(var(--glow) * 1.3 - .5);
+  animation: light-halo calc(8s - 4.5s * var(--glow)) ease-in-out infinite;
+  transition: opacity 1.8s ease;
+}
+@keyframes light-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(calc(1 + .08 * var(--glow))); } }
+@keyframes light-halo { 0%, 100% { transform: scale(.85); } 50% { transform: scale(1.12); } }
+/* An ember: low, uneven, like a coal that's still warm. */
+.light-orb[data-state="ember"] { animation: light-ember 3.4s ease-in-out infinite; }
+@keyframes light-ember { 0%, 100% { opacity: .32; } 18% { opacity: .42; } 34% { opacity: .3; } 52% { opacity: .46; } 70% { opacity: .34; } 86% { opacity: .4; } }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }

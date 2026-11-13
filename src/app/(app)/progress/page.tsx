@@ -7,10 +7,47 @@ import { currentStreak, level, LEVELS } from "@/lib/stats";
 import { today } from "@/lib/recs";
 import { store, useStore } from "@/lib/store/store";
 import { Button, Card, cn, PageTitle, Row, SectionTitle } from "@/components/ui";
+import { LightOrb, useLight } from "@/components/light";
+import { learningDays } from "@/lib/light";
+import { addDays } from "@/lib/practice";
 
 const fmtDay = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 // One hue, light to dark: minutes of practice on a day.
 const shade = (m: number) => (m === 0 ? "var(--surface-2)" : `color-mix(in srgb, var(--gold) ${m < 10 ? 30 : m < 20 ? 55 : m < 40 ? 78 : 100}%, var(--surface))`);
+
+function YourLight() {
+  const s = useStore();
+  const l = useLight();
+  const [day] = useState(() => today());
+  const { full, any } = learningDays({ stats: s.get("stats"), drills: s.get("drills"), games: s.get("games"), journal: s.get("journal"), reading: s.get("reading") });
+  const days = Array.from({ length: 7 }, (_, i) => addDays(day, i - 6));
+  return (
+    <Card className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+      <div className="grid place-items-center p-4"><LightOrb l={l} className="size-20" /></div>
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <div><p className="font-display text-[26px] leading-tight">{l.label}</p><p className="text-[13.5px] text-muted">{l.detail}</p></div>
+        <div className="flex gap-1.5" role="img" aria-label={`Learned on ${l.week} of the last 7 days`}>
+          {days.map(d => (
+            <span key={d} title={`${new Date(d + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })}: ${full.has(d) ? "session" : any.has(d) ? "practice or reading" : "no learning"}`}
+              className={cn("flex h-7 flex-1 items-center justify-center rounded-[6px] border text-[10.5px]", full.has(d) ? "border-gold bg-gold text-on-primary" : any.has(d) ? "border-gold bg-[var(--gold-soft)]" : "border-border text-muted")}>
+              {new Date(d + "T12:00:00").toLocaleDateString("en-GB", { weekday: "narrow" })}
+            </span>
+          ))}
+        </div>
+        <details className="text-[13px] text-muted">
+          <summary className="cursor-pointer text-fg">How your light works</summary>
+          <ul className="mt-2 flex list-disc flex-col gap-1 pl-5">
+            <li>A session (or the Sunday review) today makes it <strong className="text-fg">shine</strong>. Practice, a game or reading without a session keeps it <strong className="text-fg">lit</strong>, a little less bright.</li>
+            <li>If you learned yesterday, it waits for you, still bright.</li>
+            <li>Each full day you miss dims it: about two thirds after one day, half after two, a third after three. After a week it is an ember.</li>
+            <li>It never goes out. One session relights it.</li>
+            <li>The more days you learn in a week, the stronger and faster it glows.</li>
+          </ul>
+        </details>
+      </div>
+    </Card>
+  );
+}
 
 function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -74,6 +111,7 @@ export default function Progress() {
   return (
     <>
       <PageTitle title="Progress" sub="How you're growing, and what Lumen has learned about you." />
+      <div id="light" className="mb-3.5 scroll-mt-24 lg:mb-6"><YourLight /></div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         <Tile label="Streak" value={String(stats ? currentStreak(stats, day) : 0)} sub={`Best ${stats?.best ?? 0} days`} />
         <Tile label="Lumens" value={(stats?.lumens ?? 0).toLocaleString("en-GB")} sub={lv.next ? `${lv.name} · ${lv.toNext.toLocaleString("en-GB")} to ${lv.next}` : lv.name} />

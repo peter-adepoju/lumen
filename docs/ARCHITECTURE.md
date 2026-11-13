@@ -80,6 +80,10 @@ YouTube plays through the IFrame API on youtube-nocookie with related videos off
 - X posts: a source like `x.com/ManUtd` allows only that account's posts. Posts show in X's own embed frame with tracking off, only when the person taps "Show the post".
 - Games scores go to `games.json`. Target rounds are built by combining the given numbers, so every round can be solved.
 
+## Your light (`src/lib/light.ts`, `components/light.tsx`)
+
+The orb on Today and in the site header follows what the person did. A session or review today makes it shine (level 1); practice, a game or reading alone keeps it lit (0.92). Learned yesterday: waiting (0.85). Each full day missed dims it (0.62, 0.45, 0.32, then 0.22) and after 7 missed days it is an ember (0.12) that flickers but never goes out. The level is scaled by how many of the last 7 days had learning (0.8 to 1). CSS reads it as `--glow` and sets brightness, colour, glow size and breathing speed, with slow transitions so a session visibly relights it. Progress explains the rules and shows the last 7 days.
+
 ## Design system
 
 Tokens live in `src/app/globals.css` (ivory `#F7F5F0`, charcoal `#17161C`, antique gold `#B08D4F`, plus a dark theme). Fonts are bundled from npm (`@fontsource`), so they work offline: Cormorant Garamond for headings, Jost for text, JetBrains Mono for numbers. Shared components are in `src/components/ui.tsx`.

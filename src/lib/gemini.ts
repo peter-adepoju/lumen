@@ -5,13 +5,13 @@ const BASE = "https://generativelanguage.googleapis.com/v1beta";
 export const DEFAULT_MODEL = "gemini-flash-latest";
 
 /**
- * Gemini API keys from Google AI Studio come in two shapes: the classic one
- * (39 characters, starting "AIza") and the newer one (starting "AQ.", longer).
- * This only catches obvious paste mistakes; Google's own check decides if a key works.
+ * A loose check that catches paste mistakes only (an empty box, a sentence, a
+ * half-copied key). Google has changed its key format before ("AIza…", then
+ * "AQ.…"), so no prefix or exact length is assumed: any single unbroken token
+ * of 20 to 512 key-like characters passes, and Google's own check decides.
  */
 export function looksLikeKey(k: string): boolean {
-  const t = k.trim();
-  return /^AIza[0-9A-Za-z_-]{35}$/.test(t) || /^AQ\.[0-9A-Za-z._-]{20,400}$/.test(t);
+  return /^[A-Za-z0-9._~+/=:-]{20,512}$/.test(k.trim());
 }
 
 export type KeyCheck = { ok: true } | { ok: false; reason: "format" | "invalid" | "not_enabled" | "quota" | "network" };
@@ -33,7 +33,7 @@ export async function checkKey(key: string, fetcher: typeof fetch = fetch): Prom
 }
 
 export const KEY_PROBLEM: Record<Exclude<KeyCheck, { ok: true }>["reason"], string> = {
-  format: "That doesn't look like a Gemini key yet. It starts with AQ. or AIza. Copy the whole key from AI Studio and paste it here.",
+  format: "That doesn't look like a whole key yet. Copy the full key from AI Studio (use its Copy button) and paste it here.",
   invalid: "Google didn't accept this key. Copy it again from AI Studio and paste it here.",
   not_enabled: "This key's project doesn't have the Gemini API turned on. In AI Studio, create the key again and choose “Create API key in new project”.",
   quota: "This key has used up today's free allowance. It will work again tomorrow, or you can connect another key.",

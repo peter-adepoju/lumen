@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "./ui";
 import { SyncDot } from "./sync-dot";
+import { LightOrb, useLight } from "./light";
 
 const TABS = [
   { href: "/today", label: "Today", icon: <><circle cx="12" cy="12" r="4.5" /><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" /></> },
@@ -36,11 +37,12 @@ export function BottomNav() {
 /** Web: a normal website header with text links. Hidden on phones. */
 export function SiteHeader() {
   const path = usePathname();
+  const l = useLight();
   return (
     <header className="sticky top-0 z-20 hidden border-b border-border bg-[color-mix(in_srgb,var(--bg)_88%,transparent)] backdrop-blur-md lg:block">
       <div className="mx-auto flex h-16 max-w-[1160px] items-center gap-10 px-8">
         <Link href="/today" className="flex items-center gap-2.5">
-          <span className="orb size-6" aria-hidden />
+          <LightOrb l={l} decorative className="size-6" />
           <span className="font-display text-[24px] font-semibold leading-none">Lumen</span>
         </Link>
         <nav aria-label="Main" className="flex flex-1 items-center gap-1">

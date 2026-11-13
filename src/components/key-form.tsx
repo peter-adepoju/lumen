@@ -31,12 +31,12 @@ export function KeyForm({ onDone }: { onDone: () => void }) {
         <Step n={1} title="Open Google AI Studio" text="Sign in with the same Google account if it asks.">
           <a href={AI_STUDIO_URL} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-[30px] items-center rounded-full border border-border px-3 text-[13px] font-medium hover:bg-surface-2">Open AI Studio ↗</a>
         </Step>
-        <Step n={2} title="Tap “Create API key”, then Copy" text="If asked, accept Google's terms and choose “Create API key in new project”. The key starts with AQ. (or AIza for older keys)." />
+        <Step n={2} title="Tap “Create API key”, then Copy" text="If asked, accept Google's terms and choose “Create API key in new project”. Use the Copy button next to your key." />
         <Step n={3} title="Paste it here">
           <div className="mt-2 flex gap-2">
             <label htmlFor="ai-key" className="sr-only">Gemini API key</label>
             <input
-              id="ai-key" type="password" autoComplete="off" spellCheck={false} placeholder="AQ.… or AIza…" value={key}
+              id="ai-key" type="password" autoComplete="off" spellCheck={false} placeholder="Paste your key" value={key}
               onChange={e => { setKey(e.target.value); setProblem(null); }}
               className="min-w-0 flex-1 rounded-[10px] border border-border bg-surface px-3 py-2 font-mono text-[14px]"
             />

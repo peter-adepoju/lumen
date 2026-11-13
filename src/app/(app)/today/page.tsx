@@ -9,6 +9,7 @@ import { today } from "@/lib/recs";
 import { Card, Chip, cn, Pill, SectionTitle } from "@/components/ui";
 import { SyncDot } from "@/components/sync-dot";
 import { TodaysReading } from "@/components/books";
+import { LightOrb, useLight } from "@/components/light";
 import { NewsBrief } from "@/components/news";
 import { UnwindList } from "@/components/unwind";
 import { unwindTime } from "@/lib/practice-ai";
@@ -23,6 +24,7 @@ export default function Today() {
   const doneToday = stats?.lastDay === day;
   const reviewed = (stats?.sessions ?? []).some(x => x.day === day && x.area === "review");
   const lv = level(stats?.lumens ?? 0);
+  const l = useLight();
   // This page renders only on the device (after the store loads), so reading the clock and storage up front is safe.
   const [now] = useState(() => new Date());
   const [choice, setChoice] = useState<string | null>(() => { try { return localStorage.getItem("lumen:choice:" + new Date().toDateString()); } catch { return null; } });
@@ -59,8 +61,12 @@ export default function Today() {
               <p className="text-[13.5px] text-muted lg:text-[15px]">{p.minutes} minutes today · <span className="tabular">{(stats?.lumens ?? 0).toLocaleString("en-GB")}</span> lumens · {lv.name}</p>
             </div>
             <div className="flex flex-col items-center gap-1 pt-1">
-              <div className="orb size-11 lg:size-16" aria-hidden />
-              <span className="text-[11px] text-muted lg:text-[12px]">{streak ? <><span className="tabular font-medium text-fg">{streak}</span> {streak === 1 ? "day" : "days"} of light</> : "Your light starts today"}</span>
+              <Link href="/progress#light" aria-label={`Your light: ${l.label}. ${l.detail} See how it works.`} className="grid place-items-center p-1">
+                <LightOrb l={l} decorative className="size-11 lg:size-16" />
+              </Link>
+              <span className="max-w-[120px] text-center text-[11px] leading-tight text-muted lg:max-w-[150px] lg:text-[12px]">
+                {l.state === "new" ? l.label : <><span className="font-medium text-fg">{l.label}</span>{streak ? <><br /><span className="tabular">{streak}</span> {streak === 1 ? "day" : "days"} of light</> : null}</>}
+              </span>
             </div>
           </Card>
 
