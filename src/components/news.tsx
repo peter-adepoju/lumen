@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { Area, NewsItem, NewsSet, NewsStatus } from "@/lib/model";
-import { cleanNews, newsPrompt } from "@/lib/practice-ai";
-import { generateJson, aiProblem } from "@/lib/gemini";
+import { rankPrompt, toStories, withoutBlocked, type Headline } from "@/lib/news";
+import { generateJson } from "@/lib/gemini";
 import { today } from "@/lib/recs";
 import { store, useStore } from "@/lib/store/store";
 import { Button, Card, cn } from "./ui";
@@ -15,21 +15,19 @@ const STATUS_STYLE: Record<NewsStatus, string> = {
   Research: "border-border text-muted",
 };
 
-/** Keeps only links the server could open, so no story points at a dead or made-up page. */
-async function checked(items: NewsItem[]): Promise<NewsItem[]> {
-  try {
-    const r = await fetch("/api/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ items: items.map(i => ({ url: i.url, kind: "article", title: i.title })) }) });
-    if (!r.ok) return items;
-    const out = (await r.json()).items as (unknown | null)[];
-    return items.filter((_, i) => out[i]);
-  } catch { return items; }
-}
-
-export async function fetchBrief(key: string, topic: Area, day = today()): Promise<NewsSet> {
+/**
+ * Today's brief for one topic: real headlines from Google News (your trusted sources only,
+ * when you've listed some), then, with your Gemini key, the most important few, labelled.
+ * Without a key, or if the AI is busy, you get the newest headlines.
+ */
+export async function fetchBrief(key: string | undefined, topic: Area, day = today()): Promise<NewsSet> {
   const sources = store.get("newsSources")?.[topic.id] ?? [];
-  const raw = await generateJson<unknown>(key, newsPrompt(topic.name, sources, store.get("blocked") ?? [], day), { requireSearch: true });
-  const items = await checked(cleanNews(raw, topic.id, sources));
-  const set: NewsSet = { topic: topic.id, day, items, at: Date.now() };
+  const r = await fetch(`/api/news?${new URLSearchParams({ topic: topic.name, sources: sources.join(",") })}`);
+  if (!r.ok) throw new Error(r.status === 429 ? "slow_down" : "unavailable");
+  const all = withoutBlocked(((await r.json()).items ?? []) as Headline[], store.get("blocked") ?? []);
+  let raw: unknown = null;
+  if (key && all.length) { try { raw = await generateJson<unknown>(key, rankPrompt(topic.name, all)); } catch {} }
+  const set: NewsSet = { topic: topic.id, day, items: toStories(raw, all, topic.id), at: Date.now() };
   await store.update("news", l => [...(l ?? []).filter(s => !(s.topic === topic.id && s.day === day)), set].slice(-60));
   return set;
 }
@@ -91,12 +89,11 @@ export function NewsBrief({ topics }: { topics: Area[] }) {
   const missing = topics.filter(t => !has(t.id));
 
   async function load() {
-    if (ai?.mode !== "own" || !ai.key) return;
     setErr(null);
     for (const t of missing) {
       setBusy(t.name);
-      try { await fetchBrief(ai.key, t, day); }
-      catch (e) { setErr(aiProblem(e, `Couldn't get news for ${t.name}.`)); break; }
+      try { await fetchBrief(ai?.mode === "own" ? ai.key : undefined, t, day); }
+      catch (e) { setErr((e as Error).message === "slow_down" ? "Too many requests at once. Try again in a minute." : `Couldn't reach the news for ${t.name}. Check your connection and try again.`); break; }
     }
     setBusy(null);
   }
@@ -111,15 +108,16 @@ export function NewsBrief({ topics }: { topics: Area[] }) {
             <p className="eyebrow">{t.name}</p>
             {set.items.length ? <ul className="flex flex-col">{set.items.map(n => <Story key={n.id} n={n} />)}</ul>
               : <p className="text-[13px] text-muted">No news from your trusted sources in the last two days.</p>}
+            {ai?.mode !== "own" && set.items.length > 0 && <p className="text-[12px] text-muted">Newest headlines. With your Gemini key, Lumen picks the most important and labels them.</p>}
           </div>
         );
       })}
-      {missing.length > 0 && (ai?.mode === "own"
-        ? <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 first:border-t-0 first:pt-0">
-            <p className="text-[13px] text-muted">{busy ? `Checking ${busy}…` : `Today's brief: ${missing.map(m => m.name).join(", ")}`}</p>
-            <Button size="sm" variant="ghost" disabled={!!busy} onClick={load}>{busy ? "Reading the news…" : "Get today's brief"}</Button>
-          </div>
-        : <p className="text-[13px] text-muted">Following {missing.map(m => m.name).join(", ")}. Connect your Gemini key under You for a daily brief.</p>)}
+      {missing.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 first:border-t-0 first:pt-0">
+          <p className="text-[13px] text-muted">{busy ? `Checking ${busy}…` : `Today's brief: ${missing.map(m => m.name).join(", ")}`}</p>
+          <Button size="sm" variant="ghost" disabled={!!busy} onClick={load}>{busy ? "Reading the news…" : "Get today's brief"}</Button>
+        </div>
+      )}
       {err && <p role="alert" className="text-[13px] text-danger">{err}</p>}
     </Card>
   );
@@ -134,7 +132,7 @@ export function NewsSources({ topics }: { topics: Area[] }) {
   return (
     <Card className="flex flex-col">
       <span className="eyebrow mb-1">News sources</span>
-      <p className="mb-1 text-[13px] text-muted">Each brief uses only the sources you list. Leave a topic empty and Lumen sticks to official accounts and established outlets. Add a website (bbc.co.uk) or an X account (x.com/ManUtd).</p>
+      <p className="mb-1 text-[13px] text-muted">Each brief uses only the websites you list, from Google News. Leave a topic empty for headlines from all outlets Google News covers. Add a website, e.g. manutd.com or bbc.co.uk.</p>
       {topics.map(t => {
         const list = all[t.id] ?? [];
         return (

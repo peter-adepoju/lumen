@@ -30,6 +30,7 @@ export default function Privacy() {
       <ul className="list-disc pl-5">
         <li><strong>Link checks:</strong> before a link is shown to you, the server checks that it is real by asking the site (for example YouTube or Open Library) for its public title. It sees only the public link, not who you are.</li>
         <li><strong>Free classics:</strong> book searches and downloads from Project Gutenberg pass through the server.</li>
+        <li><strong>News:</strong> for your daily brief, the names of the news topics you follow (and the websites you trust for them) pass through the server to Google News, which returns public headlines. Nothing about you is sent with them, and nothing is kept.</li>
         <li><strong>Hosting:</strong> Lumen runs on Vercel, which keeps standard technical logs (such as IP address and pages requested) for security and reliability. Lumen adds no analytics or tracking.</li>
       </ul>
 
