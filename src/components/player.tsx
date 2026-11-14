@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import type { Item, Progress } from "@/lib/model";
 import { youtubeIds } from "@/lib/links";
 import { store } from "@/lib/store/store";
-import { closeStage, playOnStage, setCommands, setFull, setPlaying, setSlot, stageCommands, useStage } from "@/lib/stage";
+import { closeStage, playOnStage, setCommands, setFull, setPlaying, setSlot, stage, stageCommands, useStage } from "@/lib/stage";
 import { PlaylistEngine, PlaylistPanel } from "./playlist-player";
 import { cn } from "./ui";
 
@@ -36,7 +36,7 @@ function kindOf(item: Item): Kind {
   const yt = youtubeIds(item.url);
   if (yt.playlist) return "playlist";
   if (yt.video) return "youtube";
-  if (item.kind === "podcast" && item.embed && /\.(mp3|m4a|aac)(\?|$)/i.test(item.embed)) return "audio";
+  if (item.kind === "podcast" && item.embed && (/\.(mp3|m4a|aac)(\?|$)/i.test(item.embed) || item.ref)) return "audio";
   if (item.embed && EMBED.test(item.embed)) return "embed";
   return null;
 }
@@ -164,12 +164,32 @@ function AudioEngine({ item }: { item: Item }) {
     const saved = store.get("progress")?.[item.id];
     const onMeta = () => { if (saved && !saved.done && (saved.seconds ?? 0) > 10) el.currentTime = (saved.seconds ?? 0) - 3; void el.play().catch(() => {}); };
     const onTime = () => { if (Math.floor(el.currentTime) % 10 === 0 && el.currentTime > 5) saveProgress(item.id, { seconds: Math.floor(el.currentTime), duration: Math.floor(el.duration) || undefined }); };
-    const onEnd = () => { setPlaying(false); saveProgress(item.id, { seconds: Math.floor(el.duration), duration: Math.floor(el.duration), done: true }); };
+    const onEnd = () => {
+      setPlaying(false);
+      saveProgress(item.id, { seconds: Math.floor(el.duration), duration: Math.floor(el.duration), done: true });
+      // Listening to a saved video or playlist: it counts as watched there, and the next episode follows.
+      if (item.ref?.video) {
+        const ref = item.ref;
+        void store.update("progress", cur => {
+          const p = cur?.[ref.saved] ?? { at: 0 };
+          const watched = [...new Set([...(p.watched ?? []), ref.video!])].slice(-2000);
+          return { ...(cur ?? {}), [ref.saved]: { ...p, watched, ...(ref.video === "video" ? { done: true } : { video: item.next?.[0]?.ref?.video ?? ref.video, seconds: 0 }), at: Date.now() } };
+        });
+      }
+      if (item.next?.length) { const [n, ...rest] = item.next; playOnStage({ ...n, next: rest }, stage().home); }
+    };
     const onPlay = () => setPlaying(true), onPause = () => setPlaying(false);
     el.addEventListener("loadedmetadata", onMeta); el.addEventListener("timeupdate", onTime); el.addEventListener("ended", onEnd); el.addEventListener("play", onPlay); el.addEventListener("pause", onPause);
     setCommands({ play: () => void el.play(), pause: () => el.pause() });
     // Lock screen and headphone controls, where the phone offers them.
-    try { if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: item.title, artist: item.creator, artwork: item.thumb ? [{ src: item.thumb }] : [] }); } catch {}
+    try {
+      if ("mediaSession" in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({ title: item.title, artist: item.creator, artwork: item.thumb ? [{ src: item.thumb }] : [] });
+        navigator.mediaSession.setActionHandler("nexttrack", item.next?.length ? () => { const [n, ...rest] = item.next!; playOnStage({ ...n, next: rest }, stage().home); } : null);
+        navigator.mediaSession.setActionHandler("seekbackward", () => { el.currentTime = Math.max(0, el.currentTime - 15); });
+        navigator.mediaSession.setActionHandler("seekforward", () => { el.currentTime = Math.min(el.duration || Infinity, el.currentTime + 30); });
+      }
+    } catch {}
     return () => { el.removeEventListener("loadedmetadata", onMeta); el.removeEventListener("timeupdate", onTime); el.removeEventListener("ended", onEnd); el.removeEventListener("play", onPlay); el.removeEventListener("pause", onPause); setCommands({}); };
   }, [item.id]); // eslint-disable-line react-hooks/exhaustive-deps
   return <audio ref={a} controls preload="metadata" src={item.embed} className="h-[44px] w-full">Your browser can&apos;t play this episode.</audio>;

@@ -9,6 +9,7 @@ import { store, useStore } from "@/lib/store/store";
 import { Button, Card, cn, Pill } from "./ui";
 import { Player } from "./player";
 import { playOnStage } from "@/lib/stage";
+import { findPodcast, listenQueue } from "@/lib/listen";
 import { SourceIcon } from "./news";
 
 async function check(url: string): Promise<Checked | null> {
@@ -81,6 +82,21 @@ function SavedRow({ s, all, startOpen }: { s: SavedLink; all: string[]; startOpe
   const [folder, setFolder] = useState(s.folder);
   const update = (p: Partial<SavedLink>) => store.update("saved", l => (l ?? []).map(x => (x.id === s.id ? { ...x, ...p } : x)));
   const canPlay = playable(s);
+  const yt = classify(s.url);
+  const isYouTubeLink = !!(yt?.youtubeId || yt?.playlistId);
+  const [listening, setListening] = useState(false);
+  const [listenMsg, setListenMsg] = useState<string | null>(null);
+  async function listen() {
+    setListening(true); setListenMsg(null);
+    const fresh = (store.get("saved") ?? []).find(x => x.id === s.id) ?? s;
+    const pod = await findPodcast(fresh);
+    const item = pod ? await listenQueue((store.get("saved") ?? []).find(x => x.id === s.id) ?? fresh, pod) : null;
+    setListening(false);
+    if (!item) { setListenMsg(pod?.title ? `Found “${pod.title}”, but no episode matching this one yet.` : "No podcast version of this found. It plays as audio only where the creator publishes a podcast."); return; }
+    setOpen(false);
+    playOnStage(item, location.pathname + location.search);
+    setListenMsg(`Playing the podcast episode${item.next?.length ? `, then ${item.next.length} more` : ""}. It keeps going with the screen off.`);
+  }
   const pic = s.thumb ?? (s.episodes?.length ? `https://i.ytimg.com/vi/${s.episodes[s.episodes.length - 1].id}/mqdefault.jpg` : undefined);
   return (
     <li ref={row} className="flex scroll-mt-4 flex-col gap-2 border-t border-border py-3 first:border-t-0 first:pt-0">
@@ -131,7 +147,11 @@ function SavedRow({ s, all, startOpen }: { s: SavedLink; all: string[]; startOpe
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-muted">
           <button onClick={() => { void update({ done: !s.done }); if (!s.done) logActivity("finish", `${s.title} (${s.platform})`); }} className="underline underline-offset-4 hover:text-fg">{s.done ? "Not done" : s.kind === "article" || s.kind === "book" ? "Mark read" : "Mark watched"}</button>
           <button onClick={() => setEdit(true)} className="underline underline-offset-4 hover:text-fg">Note, tags, folder</button>
+          {isYouTubeLink && <button onClick={() => void listen()} disabled={listening} className="inline-flex items-center gap-1 underline underline-offset-4 hover:text-fg disabled:opacity-60">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden><path d="M4 14v-2a8 8 0 0 1 16 0v2" /><rect x="3" y="14" width="4" height="6" rx="1.5" /><rect x="17" y="14" width="4" height="6" rx="1.5" /></svg>
+            {listening ? "Looking for the podcast…" : "Listen instead"}</button>}
           <button onClick={() => void store.update("saved", l => (l ?? []).filter(x => x.id !== s.id))} className="ml-auto hover:text-danger">Remove</button>
+          {listenMsg && <p className="w-full text-[12.5px] text-muted" role="status">{listenMsg}</p>}
         </div>
       )}
     </li>

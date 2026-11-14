@@ -50,6 +50,9 @@ export interface Item {
   why?: string;          // one line on why it fits this person
   notice?: string;       // a "what to notice" prompt
   area: string;          // area id it was picked for
+  /** Listening to a saved video as its podcast episode: which saved item and video it stands for, and what plays next. */
+  ref?: { saved: string; video?: string };
+  next?: Item[];
 }
 
 /** One day's picks for one area. Kept so picks don't change every time Learn opens. */
@@ -143,6 +146,8 @@ export interface SavedLink {
   folder: string; note?: string; tags: string[]; savedAt: number; done?: boolean; from?: "you" | "share" | "selah";
   /** For a YouTube playlist: its episodes oldest first, when they were last checked, and ones that arrived since you last looked. */
   episodes?: Episode[]; checkedAt?: number; newIds?: string[]; newestFirst?: boolean;
+  /** "Listen instead": the creator's podcast and the episode that matches each video (key: video id, or "video"). */
+  podcast?: { feed?: string; title?: string; artwork?: string; checkedAt: number; matches: Record<string, { title: string; audio: string; seconds?: number; date?: string }> };
 }
 export interface Episode { id: string; title: string; seconds?: number; date?: string; approx?: boolean }
 /** One thing you did that says something about what interests you. Kept on your Drive, never sent anywhere but your own AI. */

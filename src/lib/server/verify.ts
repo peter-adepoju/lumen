@@ -18,8 +18,8 @@ async function getJson(url: string, ms = 6000): Promise<Record<string, unknown> 
   } catch { return null; }
 }
 
-/** Fetches a public web page safely: https/http only, no private addresses, at most 3 redirects, 300 KB. */
-export async function safeFetchPage(url: string): Promise<{ url: string; html: string } | null> {
+/** Fetches a public address safely: https/http only, no private addresses, at most 3 redirects, a size limit. */
+export async function safeFetchText(url: string, opts: { accept: string; maxBytes: number; type: (t: string) => boolean; ms?: number }): Promise<{ url: string; text: string } | null> {
   let current = url;
   for (let hop = 0; hop < 4; hop++) {
     let u: URL;
@@ -30,18 +30,24 @@ export async function safeFetchPage(url: string): Promise<{ url: string; html: s
       if (!addrs.length || addrs.some(a => isPrivateAddress(a.address))) return null;
     } catch { return null; }
     let r: Response;
-    try { r = await fetch(u, { redirect: "manual", headers: { "user-agent": UA, accept: "text/html" }, signal: AbortSignal.timeout(7000) }); } catch { return null; }
+    try { r = await fetch(u, { redirect: "manual", headers: { "user-agent": UA, accept: opts.accept }, signal: AbortSignal.timeout(opts.ms ?? 7000) }); } catch { return null; }
     if (r.status >= 300 && r.status < 400 && r.headers.get("location")) { current = new URL(r.headers.get("location")!, u).toString(); continue; }
-    if (!r.ok || !(r.headers.get("content-type") ?? "").includes("html")) return null;
+    if (!r.ok || !opts.type(r.headers.get("content-type") ?? "")) return null;
     const reader = r.body?.getReader();
     if (!reader) return null;
-    let html = "", size = 0;
+    let text = "", size = 0;
     const dec = new TextDecoder();
-    while (size < 300_000) { const { done, value } = await reader.read(); if (done) break; size += value.length; html += dec.decode(value, { stream: true }); }
+    while (size < opts.maxBytes) { const { done, value } = await reader.read(); if (done) break; size += value.length; text += dec.decode(value, { stream: true }); }
     reader.cancel().catch(() => {});
-    return { url: u.toString(), html };
+    return { url: u.toString(), text };
   }
   return null;
+}
+
+/** Fetches a public web page safely (300 KB at most). */
+export async function safeFetchPage(url: string): Promise<{ url: string; html: string } | null> {
+  const r = await safeFetchText(url, { accept: "text/html", maxBytes: 300_000, type: t => t.includes("html") });
+  return r ? { url: r.url, html: r.text } : null;
 }
 
 const meta = (html: string, prop: string) =>
