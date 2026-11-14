@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Item, Progress } from "@/lib/model";
 import { youtubeIds } from "@/lib/links";
 import { store } from "@/lib/store/store";
 import { PlaylistPlayer } from "./playlist-player";
+import { VideoFrame } from "./video-frame";
 
 /* Minimal typing for the YouTube IFrame API. */
 export interface YTPlayer { getCurrentTime(): number; getDuration(): number; getPlaylistIndex(): number; destroy(): void; loadVideoById?(o: { videoId: string; startSeconds?: number }): void; cueVideoById?(o: { videoId: string; startSeconds?: number }): void; playVideo?(): void }
@@ -31,6 +32,7 @@ function saveProgress(id: string, p: Omit<Progress, "at">) {
 export function Player({ item }: { item: Item }) {
   const host = useRef<HTMLDivElement>(null);
   const audio = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
   const yt = youtubeIds(item.url);
   // Playlists have their own player (oldest first, episode list, new episodes); this one plays single videos.
   const isYouTube = !!yt.video && !yt.playlist;
@@ -52,7 +54,7 @@ export function Player({ item }: { item: Item }) {
           ...(yt.playlist ? { listType: "playlist", list: yt.playlist, index: saved?.index ?? 0 } : {}),
         },
         events: {
-          onStateChange: (e: { data: number }) => { if (e.data === 0 && player) { const d = player.getDuration(); saveProgress(item.id, { seconds: d, duration: d, done: !yt.playlist }); } },
+          onStateChange: (e: { data: number }) => { if (e.data === 1) setPlaying(true); if (e.data === 0) setPlaying(false); if (e.data === 0 && player) { const d = player.getDuration(); saveProgress(item.id, { seconds: d, duration: d, done: !yt.playlist }); } },
         },
       });
       timer = setInterval(() => {
@@ -76,7 +78,7 @@ export function Player({ item }: { item: Item }) {
   }, [item.id]);
 
   if (yt.playlist) return <PlaylistPlayer item={item} />;
-  if (isYouTube) return <div ref={host} className="aspect-video w-full overflow-hidden rounded-[12px] bg-black [&>div]:size-full [&_iframe]:size-full" />;
+  if (isYouTube) return <VideoFrame playing={playing}><div ref={host} className="size-full" /></VideoFrame>;
   if (item.kind === "podcast" && item.embed && /\.(mp3|m4a|aac)(\?|$)/i.test(item.embed)) {
     return (
       <div className="flex items-center gap-4 rounded-[12px] border border-border p-3">
@@ -87,7 +89,8 @@ export function Player({ item }: { item: Item }) {
   }
   if (item.embed && /^https:\/\/(www\.tiktok\.com\/player|player\.vimeo\.com|embed\.ted\.com)/.test(item.embed)) {
     const tall = item.kind === "clip";
-    return <iframe src={item.embed} title={item.title} allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowFullScreen className={tall ? "mx-auto aspect-[9/16] w-full max-w-[340px] rounded-[12px]" : "aspect-video w-full rounded-[12px]"} />;
+    // Other sites' players don't say when they play: tapping into them counts (see VideoFrame).
+    return <VideoFrame playing={playing} tall={tall}><iframe src={item.embed} title={item.title} allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowFullScreen className="size-full border-0" /></VideoFrame>;
   }
   return null;
 }

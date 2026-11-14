@@ -6,6 +6,7 @@ import { CHECK_EVERY, episodeDate, fetchPlaylist, fmtTime, mergeEpisodes, nextEp
 import { store, useStore } from "@/lib/store/store";
 import { loadYouTube, type YTPlayer } from "./player";
 import { cn } from "./ui";
+import { VideoFrame } from "./video-frame";
 
 function saveProgress(id: string, p: Partial<Progress>) {
   void store.update("progress", cur => ({ ...(cur ?? {}), [id]: { ...(cur?.[id] ?? {}), ...p, at: Date.now() } }));
@@ -44,6 +45,7 @@ export function PlaylistPlayer({ item }: { item: Item }) {
   const order = newestFirst ? [...episodesAsc].reverse() : episodesAsc;
   const start = resumeAt(order, progress);
   const [current, setCurrent] = useState<number | null>(null);
+  const [playing, setPlaying] = useState(false);
   const idx = current ?? start.index;
   const ep = order[idx];
   const watched = new Set(progress?.watched ?? []);
@@ -91,12 +93,13 @@ export function PlaylistPlayer({ item }: { item: Item }) {
         playerVars: { rel: 0, modestbranding: 1, playsinline: 1, start: Math.floor(start.seconds) },
         events: {
           onStateChange: (e: { data: number }) => {
+            if (e.data === 1) setPlaying(true);
             if (e.data !== 0) return;
             const o = orderRef.current, i = idxRef.current, done = o[i];
             const w = new Set(store.get("progress")?.[item.id]?.watched ?? []); w.add(done.id);
             const n = nextEpisode(o, i, w);
             saveProgress(item.id, { watched: [...w].slice(-2000), video: n !== null ? o[n].id : done.id, index: n ?? i, seconds: 0, done: n === null });
-            if (n !== null) { setCurrent(n); p.loadVideoById?.({ videoId: o[n].id }); }
+            if (n !== null) { setCurrent(n); p.loadVideoById?.({ videoId: o[n].id }); } else setPlaying(false);
           },
         },
       }) as YTPlayer;
@@ -119,11 +122,11 @@ export function PlaylistPlayer({ item }: { item: Item }) {
 
   if (state === "failed" && !order.length) {
     // Couldn't read the playlist: fall back to YouTube's own playlist player.
-    return <iframe src={`https://www.youtube-nocookie.com/embed/videoseries?list=${encodeURIComponent(list)}&rel=0&modestbranding=1`} title={item.title} allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowFullScreen className="aspect-video w-full rounded-[12px] border-0 bg-black" />;
+    return <VideoFrame playing={playing}><iframe src={`https://www.youtube-nocookie.com/embed/videoseries?list=${encodeURIComponent(list)}&rel=0&modestbranding=1`} title={item.title} allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowFullScreen className="size-full border-0" /></VideoFrame>;
   }
   return (
     <div className="flex flex-col gap-2">
-      {ready ? <div ref={host} className="aspect-video w-full overflow-hidden rounded-[12px] bg-black [&>div]:size-full [&_iframe]:size-full" />
+      {ready ? <VideoFrame playing={playing}><div ref={host} className="size-full" /></VideoFrame>
         : <div className="grid aspect-video w-full place-items-center rounded-[12px] bg-surface-2 text-[13px] text-muted">Reading the playlist…</div>}
       {ep && (
         <div className="flex flex-wrap items-center justify-between gap-2 text-[12.5px] text-muted">
