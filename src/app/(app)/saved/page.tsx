@@ -10,7 +10,7 @@ function Saved() {
   return (
     <>
       <PageTitle title="Saved" sub="Links you keep: videos, podcasts and clips play right here. What you save also helps Lumen notice what interests you." />
-      <div className="max-w-[760px]"><SavedView share={share} /></div>
+      <div className="max-w-[760px]"><SavedView share={share} openId={p.get("open")} /></div>
     </>
   );
 }

@@ -3,14 +3,15 @@ import { useEffect, useRef } from "react";
 import type { Item, Progress } from "@/lib/model";
 import { youtubeIds } from "@/lib/links";
 import { store } from "@/lib/store/store";
+import { PlaylistPlayer } from "./playlist-player";
 
 /* Minimal typing for the YouTube IFrame API. */
-interface YTPlayer { getCurrentTime(): number; getDuration(): number; getPlaylistIndex(): number; destroy(): void }
+export interface YTPlayer { getCurrentTime(): number; getDuration(): number; getPlaylistIndex(): number; destroy(): void; loadVideoById?(o: { videoId: string; startSeconds?: number }): void; cueVideoById?(o: { videoId: string; startSeconds?: number }): void; playVideo?(): void }
 interface YTNamespace { Player: new (el: HTMLElement, opts: Record<string, unknown>) => YTPlayer }
 declare global { interface Window { YT?: YTNamespace; onYouTubeIframeAPIReady?: () => void } }
 
 let ytReady: Promise<YTNamespace> | null = null;
-function loadYouTube(): Promise<YTNamespace> {
+export function loadYouTube(): Promise<YTNamespace> {
   if (window.YT?.Player) return Promise.resolve(window.YT);
   if (!ytReady) {
     ytReady = new Promise(resolve => {
@@ -31,7 +32,8 @@ export function Player({ item }: { item: Item }) {
   const host = useRef<HTMLDivElement>(null);
   const audio = useRef<HTMLAudioElement>(null);
   const yt = youtubeIds(item.url);
-  const isYouTube = !!(yt.video || yt.playlist);
+  // Playlists have their own player (oldest first, episode list, new episodes); this one plays single videos.
+  const isYouTube = !!yt.video && !yt.playlist;
 
   useEffect(() => {
     if (!isYouTube || !host.current) return;
@@ -73,6 +75,7 @@ export function Player({ item }: { item: Item }) {
     return () => { a.removeEventListener("loadedmetadata", onMeta); a.removeEventListener("timeupdate", onTime); a.removeEventListener("ended", onEnd); };
   }, [item.id]);
 
+  if (yt.playlist) return <PlaylistPlayer item={item} />;
   if (isYouTube) return <div ref={host} className="aspect-video w-full overflow-hidden rounded-[12px] bg-black [&>div]:size-full [&_iframe]:size-full" />;
   if (item.kind === "podcast" && item.embed && /\.(mp3|m4a|aac)(\?|$)/i.test(item.embed)) {
     return (

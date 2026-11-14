@@ -59,7 +59,7 @@ export type Rating = "up" | "down" | "too easy" | "too hard" | "done";
 export interface Feedback { id: string; title: string; creator: string; platform: string; area: string; rating: Rating; at: number }
 
 /** Where the person stopped in each item: seconds for video/audio, a fraction for articles, a page for books. */
-export interface Progress { seconds?: number; duration?: number; index?: number; fraction?: number; done?: boolean; at: number }
+export interface Progress { seconds?: number; duration?: number; index?: number; fraction?: number; done?: boolean; at: number; video?: string; watched?: string[] }
 
 export interface JournalEntry { day: string; area: string; text: string; at: number }
 
@@ -141,7 +141,10 @@ export interface UnwindSet { week: string; items: UnwindPick[]; at: number; lang
 export interface SavedLink {
   id: string; url: string; title: string; kind: ItemKind; platform: string; creator?: string; thumb?: string; embed?: string;
   folder: string; note?: string; tags: string[]; savedAt: number; done?: boolean; from?: "you" | "share" | "selah";
+  /** For a YouTube playlist: its episodes oldest first, when they were last checked, and ones that arrived since you last looked. */
+  episodes?: Episode[]; checkedAt?: number; newIds?: string[]; newestFirst?: boolean;
 }
+export interface Episode { id: string; title: string; seconds?: number; date?: string; approx?: boolean }
 /** One thing you did that says something about what interests you. Kept on your Drive, never sent anywhere but your own AI. */
 export interface Activity { kind: "save" | "like" | "dislike" | "search" | "finish" | "add"; text: string; area?: string; at: number }
 /** An interest Lumen noticed in your activity and asked you about. */

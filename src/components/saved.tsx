@@ -69,16 +69,20 @@ function AddBox({ folder, onAdded, initial }: { folder: string; onAdded: () => v
   );
 }
 
-function SavedRow({ s, all }: { s: SavedLink; all: string[] }) {
-  const [open, setOpen] = useState(false);
+function SavedRow({ s, all, startOpen }: { s: SavedLink; all: string[]; startOpen?: boolean }) {
+  const [open, setOpen] = useState(!!startOpen);
+  const row = useRef<HTMLLIElement>(null);
+  useEffect(() => { if (startOpen) row.current?.scrollIntoView({ block: "start", behavior: "smooth" }); }, [startOpen]);
+  const progress = useStore().get("progress")?.[s.id];
   const [edit, setEdit] = useState(false);
   const [note, setNote] = useState(s.note ?? "");
   const [tags, setTags] = useState(s.tags.join(", "));
   const [folder, setFolder] = useState(s.folder);
   const update = (p: Partial<SavedLink>) => store.update("saved", l => (l ?? []).map(x => (x.id === s.id ? { ...x, ...p } : x)));
   const canPlay = playable(s);
+  const pic = s.thumb ?? (s.episodes?.length ? `https://i.ytimg.com/vi/${s.episodes[s.episodes.length - 1].id}/mqdefault.jpg` : undefined);
   return (
-    <li className="flex flex-col gap-2 border-t border-border py-3 first:border-t-0 first:pt-0">
+    <li ref={row} className="flex scroll-mt-4 flex-col gap-2 border-t border-border py-3 first:border-t-0 first:pt-0">
       {open && canPlay && (
         <div className="flex flex-col gap-1">
           <Player item={asItem(s)} />
@@ -88,8 +92,8 @@ function SavedRow({ s, all }: { s: SavedLink; all: string[] }) {
       <div className="flex gap-3">
         <button onClick={() => (canPlay ? setOpen(o => !o) : window.open(s.url, "_blank", "noopener"))} aria-label={canPlay ? `Play ${s.title}` : `Open ${s.title}`}
           className="relative h-[68px] w-[120px] shrink-0 overflow-hidden rounded-[10px] border border-border bg-surface-2">
-          {s.thumb
-            ? <img src={s.thumb} alt="" loading="lazy" className="h-full w-full object-cover" onError={e => { e.currentTarget.style.visibility = "hidden"; }} />
+          {pic
+            ? <img src={pic} alt="" loading="lazy" className="h-full w-full object-cover" onError={e => { e.currentTarget.style.visibility = "hidden"; }} />
             : <span className="grid h-full place-items-center"><SourceIcon url={s.url} name={s.platform} size={22} /></span>}
           {canPlay && <span className="absolute inset-0 grid place-items-center"><span className="grid size-7 place-items-center rounded-full bg-black/60 text-white"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M8 5v14l11-7z" /></svg></span></span>}
         </button>
@@ -99,6 +103,12 @@ function SavedRow({ s, all }: { s: SavedLink; all: string[] }) {
             <SourceIcon url={s.url} name={s.platform} size={12} />
             <span className="truncate">{[s.creator, s.platform, KIND_LABEL[s.kind], s.folder !== INBOX ? s.folder : ""].filter(Boolean).join(" · ")}</span>
           </span>
+          {(s.episodes?.length || s.newIds?.length) ? (
+            <span className="flex flex-wrap items-center gap-1.5 text-[12px] text-muted">
+              {s.episodes?.length ? <span>{s.episodes.length} episodes{progress?.video ? ` · on episode ${Math.max(1, (s.newestFirst ? [...s.episodes].reverse() : s.episodes).findIndex(e => e.id === progress.video) + 1)}` : ""}</span> : null}
+              {s.newIds?.length ? <span className="rounded-full bg-[var(--gold-soft)] px-2 py-px font-medium text-fg">{s.newIds.length} new</span> : null}
+            </span>
+          ) : null}
           {s.note && !edit && <p className="line-clamp-2 text-[13px] text-muted">{s.note}</p>}
           {s.tags.length > 0 && !edit && <p className="text-[12px] text-muted">{s.tags.map(t => `#${t}`).join(" ")}</p>}
         </div>
@@ -128,7 +138,39 @@ function SavedRow({ s, all }: { s: SavedLink; all: string[] }) {
 }
 
 /** Everything you saved: paste links, sort them into folders, watch or read them here. */
-export function SavedView({ share }: { share?: { title?: string | null; text?: string | null; url?: string | null } }) {
+/** Started videos and playlists, to pick up where you stopped. */
+function ContinueStrip({ list, onOpen }: { list: SavedLink[]; onOpen: (id: string) => void }) {
+  const progress = useStore().get("progress") ?? {};
+  const going = list.filter(s => { const p = progress[s.id]; return p && !p.done && !s.done && ((p.seconds ?? 0) > 10 || p.video); })
+    .sort((a, b) => (progress[b.id]?.at ?? 0) - (progress[a.id]?.at ?? 0)).slice(0, 6);
+  if (!going.length) return null;
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="eyebrow">Continue where you left off</span>
+      <ul className="no-scrollbar -mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1">
+        {going.map(s => {
+          const p = progress[s.id];
+          const ep = s.episodes ? (s.newestFirst ? [...s.episodes].reverse() : s.episodes).findIndex(e => e.id === p?.video) : -1;
+          const pct = p?.duration ? Math.min(100, Math.round(((p.seconds ?? 0) / p.duration) * 100)) : 0;
+          return (
+            <li key={s.id} className="w-[180px] shrink-0">
+              <button onClick={() => onOpen(s.id)} className="flex w-full flex-col gap-1 text-left">
+                <span className="relative block aspect-video w-full overflow-hidden rounded-[10px] border border-border bg-surface-2">
+                  {(s.thumb ?? (p?.video ? `https://i.ytimg.com/vi/${p.video}/mqdefault.jpg` : undefined)) && <img src={s.thumb ?? `https://i.ytimg.com/vi/${p!.video}/mqdefault.jpg`} alt="" loading="lazy" className="h-full w-full object-cover" onError={e => { e.currentTarget.style.visibility = "hidden"; }} />}
+                  <span className="absolute inset-x-0 bottom-0 h-1 bg-black/30"><span className="block h-full bg-gold" style={{ width: `${pct}%` }} /></span>
+                </span>
+                <span className="line-clamp-2 text-[13px] font-medium leading-snug">{s.title}</span>
+                <span className="text-[11.5px] text-muted">{ep >= 0 && s.episodes ? `Episode ${ep + 1} of ${s.episodes.length}` : pct ? `${pct}% watched` : "Started"}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+export function SavedView({ share, openId }: { share?: { title?: string | null; text?: string | null; url?: string | null }; openId?: string | null }) {
   const st = useStore();
   const list = st.get("saved") ?? [];
   const [folder, setFolder] = useState<string>("all");
@@ -139,6 +181,8 @@ export function SavedView({ share }: { share?: { title?: string | null; text?: s
   const [msg, setMsg] = useState<string | null>(null);
   const all = folders(list);
   const shared = share ? fromShare(share) : null;
+  const [opened, setOpened] = useState<string | null>(openId ?? null);
+  const openItem = (id: string) => { setFolder("all"); setKind("all"); setShow("all"); setQ(""); setOpened(id); };
 
   // A finished search counts as something you were looking for.
   useEffect(() => { if (q.trim().length < 3) return; const t = setTimeout(() => logActivity("search", q.trim()), 1500); return () => clearTimeout(t); }, [q]);
@@ -162,6 +206,7 @@ export function SavedView({ share }: { share?: { title?: string | null; text?: s
   return (
     <div className="flex flex-col gap-3">
       <AddBox folder={folder === "all" ? INBOX : folder} initial={shared} onAdded={() => setShow("todo")} />
+      <ContinueStrip list={list} onOpen={openItem} />
       <div className="flex flex-col gap-2">
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search your saved links" aria-label="Search saved" className="rounded-[10px] border border-border bg-surface px-3 py-2 text-[14px]" />
         <div className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1">
@@ -175,7 +220,7 @@ export function SavedView({ share }: { share?: { title?: string | null; text?: s
         </div>
       </div>
       <Card>
-        {shown.length ? <ul className="flex flex-col">{shown.slice(0, limit).map(s => <SavedRow key={s.id} s={s} all={all} />)}</ul>
+        {shown.length ? <ul className="flex flex-col">{shown.slice(0, opened ? Math.max(limit, shown.findIndex(x => x.id === opened) + 1) : limit).map(s => <SavedRow key={s.id + (opened === s.id ? ":open" : "")} s={s} all={all} startOpen={opened === s.id} />)}</ul>
           : <p className="text-[13.5px] text-muted">{list.length ? "Nothing here with these filters." : "Nothing saved yet. Paste a link above, or share a page to Lumen from your phone."}</p>}
         {shown.length > limit && <button onClick={() => setLimit(n => n + 60)} className="mt-2 text-[13px] underline underline-offset-4">Show more</button>}
       </Card>

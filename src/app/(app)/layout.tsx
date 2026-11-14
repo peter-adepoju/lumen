@@ -5,6 +5,7 @@ import { BottomNav, SiteFooter, SiteHeader } from "@/components/nav";
 import { store, useStore } from "@/lib/store/store";
 import { useTheme } from "@/lib/theme";
 import { useReminder, useServiceWorker } from "@/components/pwa";
+import { usePlaylistWatch } from "@/components/playlist-watch";
 
 /**
  * Two layouts from one set of pages:
@@ -17,6 +18,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   useTheme();
   useServiceWorker();
   useReminder();
+  usePlaylistWatch();
   useEffect(() => { store.init().then(() => { if (!store.get("profile")) router.replace("/setup"); }); }, [router]);
   if (!s.loaded || !s.get("profile")) return <main className="grid min-h-dvh place-items-center"><div className="orb size-12" aria-label="Loading" /></main>;
   return (
