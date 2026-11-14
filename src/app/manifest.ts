@@ -25,8 +25,11 @@ export default function manifest(): MetadataRoute.Manifest {
       { src: "/screenshots/today-wide.png", sizes: "1280x800", type: "image/png", form_factor: "wide", label: "Today: your focus, reading and week" },
       { src: "/screenshots/today-narrow.png", sizes: "780x1688", type: "image/png", form_factor: "narrow", label: "Today on your phone" },
     ],
+    // Share a page to Lumen from your phone: it lands in Saved.
+    share_target: { action: "/saved", method: "GET", params: { title: "title", text: "text", url: "url" } },
     shortcuts: [
       { name: "Today's session", url: "/session" },
+      { name: "Saved", url: "/saved" },
       { name: "Library", url: "/library" },
       { name: "Practice", url: "/practice" },
     ],

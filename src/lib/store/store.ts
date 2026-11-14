@@ -14,7 +14,7 @@ export type SyncState = "device" | "syncing" | "synced" | "offline" | "reconnect
 /** The account's own setup: when a new device joins, Drive's copy of these wins over the device's. */
 const SETUP_DOCS = new Set<DocName>(["profile", "ai", "newsSources", "readerSettings"]);
 
-const DOCS: DocName[] = ["profile", "ai", "blocked", "added", "picks", "feedback", "progress", "journal", "stats", "library", "reading", "readerSettings", "cards", "drills", "news", "newsSources", "unwind", "games"];
+const DOCS: DocName[] = ["profile", "ai", "blocked", "added", "picks", "feedback", "progress", "journal", "stats", "library", "reading", "readerSettings", "cards", "drills", "news", "newsSources", "unwind", "games", "saved", "activity", "interests"];
 const file = (n: DocName) => `${n}.json`;
 
 let token: { value: string; expiresAt: number } | null = null;

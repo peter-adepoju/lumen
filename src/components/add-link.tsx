@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { classify } from "@/lib/links";
+import { logActivity } from "@/lib/activity";
 import { store, useStore } from "@/lib/store/store";
 import { Button, Card } from "./ui";
 
@@ -28,6 +29,7 @@ export function AddLink() {
     } catch {}
     const guess = p.areas.find(a => new RegExp(`\\b${a.name.split(" ")[0]}`, "i").test(`${title} ${why} ${url}`));
     await store.update("added", list => [{ url: info.canonical, source: info.platform, area: area || guess?.name || "General", why: why.trim() || undefined, creator: creator || undefined, title: title || undefined, at: Date.now() }, ...(list ?? []).filter(x => x.url !== info.canonical)].slice(0, 300));
+    logActivity("add", `${title || info.canonical}${creator ? ` (${creator})` : ""}${why.trim() ? ` — ${why.trim()}` : ""}`, area || guess?.name);
     setBusy(false); setUrl(""); setWhy(""); setArea("");
     setMsg(title ? `Added “${title}”. Lumen will look for more like it.` : `Added from ${info.platform}. Lumen will learn from it.`);
   }

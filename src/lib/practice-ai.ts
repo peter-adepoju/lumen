@@ -76,17 +76,57 @@ export function cleanNews(raw: unknown, topic: string, sources: string[]): NewsI
   }).slice(0, 5);
 }
 
+/** What the AI is told about where to watch: free and legal first, with a trailer for a picture. */
+export const WATCH_RULES = `Put titles people can watch FREE and legally first (at least half of the picks when possible): a full film or episodes posted by the rights-holder on their official YouTube channel, free broadcaster services (BBC iPlayer, ARTE, TV5MONDE, RTVE Play, ZDF Mediathek, NHK World), free ad-supported services (Tubi, Pluto TV, Plex, YouTube Movies free with ads), library services (Kanopy, Hoopla) or public-domain archives (Internet Archive). Never suggest pirated uploads. For each title give "free": true or false, "watch": the exact page or YouTube video URL where it can be watched free (null if it isn't free), and "trailer": the URL of its official trailer on YouTube (null if you can't find one).`;
+
+const yt = (u: unknown) => typeof u === "string" && /^https:\/\/(www\.|m\.)?(youtube\.com\/(watch\?v=|embed\/|shorts\/)|youtu\.be\/)[A-Za-z0-9_-]{11}/.test(u) ? u : undefined;
+const https = (u: unknown) => typeof u === "string" && /^https:\/\//.test(u) ? u : undefined;
+/** The watch fields of a raw AI pick. */
+function watchFields(r: Record<string, unknown>): Pick<UnwindPick, "watch" | "free" | "trailer"> {
+  const watch = https(r.watch);
+  return { ...(watch ? { watch } : {}), free: !!watch && r.free !== false, ...(yt(r.trailer) ? { trailer: yt(r.trailer) } : {}) };
+}
+
+export type VerifyFn = (urls: string[]) => Promise<({ url: string; thumb?: string; platform?: string } | null)[]>;
+export const verifyUrls: VerifyFn = async urls => {
+  if (!urls.length) return [];
+  const r = await fetch("/api/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ items: urls.map(url => ({ url, kind: "video" })) }) });
+  if (!r.ok) return urls.map(() => null);
+  return ((await r.json()).items ?? []) as ({ url: string; thumb?: string; platform?: string } | null)[];
+};
+
+/**
+ * Checks each pick's free link and trailer (dropping any that don't exist), gives it a picture
+ * (the free video's, the trailer's, or its page's), and puts the ones you can watch free first.
+ */
+export async function enrichPicks(picks: UnwindPick[], check: VerifyFn = verifyUrls): Promise<UnwindPick[]> {
+  const urls = [...new Set(picks.flatMap(p => [p.watch, p.trailer, p.url].filter((u): u is string => !!u)))].slice(0, 40);
+  let results: Map<string, { thumb?: string; platform?: string } | null>;
+  try { const r = await check(urls); results = new Map(urls.map((u, i) => [u, r[i] ?? null])); }
+  catch { return picks; }
+  const out = picks.map(p => {
+    const w = p.watch ? results.get(p.watch) : undefined, t = p.trailer ? results.get(p.trailer) : undefined, page = results.get(p.url);
+    const watch = p.watch && w !== null ? p.watch : undefined;
+    const trailer = p.trailer && t !== null ? p.trailer : undefined;
+    const thumb = (watch && w?.thumb) || (trailer && t?.thumb) || page?.thumb || p.thumb;
+    return { ...p, watch, free: !!watch && !!p.free, trailer, ...(thumb ? { thumb } : {}) };
+  });
+  return out.sort((a, b) => Number(!!b.free) - Number(!!a.free));
+}
+
 export async function unwindPicks(key: string, p: Profile, avoid: string[], n = 4): Promise<UnwindPick[]> {
   const areas = p.areas.filter(a => a.freq !== "Paused").map(a => a.name);
   const raw = await generateJson<Partial<UnwindPick>[]>(key, [
     `Suggest ${n} TV series, films or documentaries to watch for relaxation this weekend. Fun first, with something quietly useful inside that links to one of these areas: ${areas.join(", ")}. ${goal(p)}`,
     avoid.length ? `Don't suggest: ${avoid.slice(-40).join("; ")}.` : "",
     `Use Google Search to confirm each title exists. Give the official site or a reliable reference page (for example Wikipedia) as the url, and the most common place to stream it, noting it varies by country.`,
-    `Reply with JSON only: [{"title": "...", "kind": "series|film|documentary", "year": "YYYY", "why": "one sentence on why it's fun and what it quietly teaches", "area": "one of the areas above", "where": "e.g. Netflix (varies by country)", "url": "https://..."}]`,
+    WATCH_RULES,
+    `Reply with JSON only: [{"title": "...", "kind": "series|film|documentary", "year": "YYYY", "why": "one sentence on why it's fun and what it quietly teaches", "area": "one of the areas above", "where": "e.g. Free on Tubi, or Netflix (varies by country)", "url": "https://...", "free": true, "watch": "https://... or null", "trailer": "https://www.youtube.com/watch?v=... or null"}]`,
   ].filter(Boolean).join("\n"), { search: true });
-  return (Array.isArray(raw) ? raw : []).flatMap(r => (r && typeof r.title === "string" && typeof r.url === "string" && /^https:\/\//.test(r.url))
-    ? [{ id: itemId(r.title.toLowerCase()), title: r.title, kind: (["series", "film", "documentary"].includes(r.kind as string) ? r.kind : "series") as UnwindPick["kind"], year: r.year ? String(r.year).slice(0, 4) : undefined, why: String(r.why ?? "").slice(0, 240), area: r.area, where: r.where ? String(r.where).slice(0, 80) : undefined, url: r.url }]
+  const picks = (Array.isArray(raw) ? raw : []).flatMap(r => (r && typeof r.title === "string" && typeof r.url === "string" && /^https:\/\//.test(r.url))
+    ? [{ id: itemId(r.title.toLowerCase()), title: r.title, kind: (["series", "film", "documentary"].includes(r.kind as string) ? r.kind : "series") as UnwindPick["kind"], year: r.year ? String(r.year).slice(0, 4) : undefined, why: String(r.why ?? "").slice(0, 240), area: r.area, where: r.where ? String(r.where).slice(0, 80) : undefined, url: r.url, ...watchFields(r as Record<string, unknown>) }]
     : []).slice(0, n);
+  return enrichPicks(picks);
 }
 
 /**
@@ -99,7 +139,8 @@ export function languageFilmPrompt(langs: { name: string; level?: string }[], av
     `Each must be originally made in that language (not dubbed), enjoyable, and good for learning: clear everyday speech, a story easy enough to follow at the learner's level (start gentle: comedies, family dramas, slice-of-life, kids' and teen shows for beginners; faster or more regional speech for advanced learners). Mix well-loved classics with recent titles. For English as a learned language, prefer clearly spoken British or American shows.`,
     avoid.length ? `Don't suggest: ${avoid.slice(-40).join("; ")}.` : "",
     `Use Google Search to confirm each title exists. Give the official site or a reliable reference page (for example Wikipedia) as the url, and the most common place to stream it, noting it varies by country.`,
-    `Reply with JSON only: [{"lang": "the language", "title": "original title (English title)", "kind": "series|film|documentary", "year": "YYYY", "level": "beginner|intermediate|advanced", "why": "one sentence: why it's good for learning this language", "tip": "one practical sentence on how to watch it to learn (e.g. which subtitles, which episodes, what to listen for)", "where": "e.g. Netflix (varies by country)", "url": "https://..."}]`,
+    WATCH_RULES + " For language learners, free broadcaster sites of that language's countries (TV5MONDE for French, RTVE Play for Spanish, ARTE for French and German, NHK World for Japanese) and official YouTube channels of that country's studios and TV stations are especially good.",
+    `Reply with JSON only: [{"lang": "the language", "title": "original title (English title)", "kind": "series|film|documentary", "year": "YYYY", "level": "beginner|intermediate|advanced", "why": "one sentence: why it's good for learning this language", "tip": "one practical sentence on how to watch it to learn (e.g. which subtitles, which episodes, what to listen for)", "where": "e.g. Free on TV5MONDE, or Netflix (varies by country)", "url": "https://...", "free": true, "watch": "https://... or null", "trailer": "https://www.youtube.com/watch?v=... or null"}]`,
   ].filter(Boolean).join("\n");
 }
 
@@ -118,6 +159,7 @@ export function toLanguagePicks(raw: unknown, langs: string[], perLanguage = 3):
       year: r.year ? String(r.year).slice(0, 4) : undefined, why: String(r.why ?? "").slice(0, 240), area: lang, lang,
       level: ["beginner", "intermediate", "advanced"].includes(String(r.level)) ? String(r.level) : undefined,
       tip: r.tip ? String(r.tip).slice(0, 240) : undefined, where: r.where ? String(r.where).slice(0, 80) : undefined, url: r.url,
+      ...watchFields(r),
     }];
   });
 }
@@ -125,7 +167,7 @@ export function toLanguagePicks(raw: unknown, langs: string[], perLanguage = 3):
 export async function languageFilmPicks(key: string, langs: { name: string; level?: string }[], avoid: string[], perLanguage = 3): Promise<UnwindPick[]> {
   if (!langs.length) return [];
   const raw = await generateJson<unknown>(key, languageFilmPrompt(langs, avoid, perLanguage), { search: true });
-  return toLanguagePicks(raw, langs.map(l => l.name), perLanguage);
+  return enrichPicks(toLanguagePicks(raw, langs.map(l => l.name), perLanguage));
 }
 
 /** Unwind picks show on Friday to Sunday, or after a 7-day streak. */

@@ -3,9 +3,11 @@ import { useEffect, useState } from "react";
 import { KIND_LABEL, type Area, type Block, type BlockType, type Item, type Progress, type Rating } from "@/lib/model";
 import { store, useStore } from "@/lib/store/store";
 import { Player } from "./player";
+import { logActivity } from "@/lib/activity";
 import { Button, cn } from "./ui";
 
 export function rate(item: Item, rating: Rating) {
+  if (rating === "up" || rating === "done" || rating === "down") logActivity(rating === "down" ? "dislike" : rating === "done" ? "finish" : "like", `${item.title} (${[item.creator, item.platform].filter(Boolean).join(", ")})`, item.area);
   return store.update("feedback", f => [...(f ?? []).filter(x => !(x.id === item.id && x.rating === rating)), { id: item.id, title: item.title, creator: item.creator, platform: item.platform, area: item.area, rating, at: Date.now() }].slice(-500));
 }
 

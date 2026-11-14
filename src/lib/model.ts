@@ -6,7 +6,8 @@ export type Freq = "Daily" | "Weekly" | "Sometimes" | "Paused";
 export type PlanMode = "Lumen plans each day" | "Same focus every day" | "I choose each day";
 export type Format = "Videos" | "Short clips" | "Podcasts" | "Books" | "Articles" | "Exercises and games";
 
-export interface Area { id: string; name: string; cat: Category; freq: Freq; star: boolean }
+/** `from`: how it got here: chosen at setup, added by you later, or noticed by Lumen and added with your yes. */
+export interface Area { id: string; name: string; cat: Category; freq: Freq; star: boolean; from?: "setup" | "you" | "noticed" }
 
 export interface Profile {
   goal: string;
@@ -126,9 +127,26 @@ export interface NewsVideo { id: string; title: string; channel: string; date: s
 /** `videoChannels`: the YouTube channels the videos came from (yours, or suggested for the topic). */
 export interface NewsSet { topic: string; day: string; items: NewsItem[]; at: number; videos?: NewsVideo[]; videoChannels?: string[] }
 /** `lang`, `level` and `tip` are set on picks chosen to help with a language you're learning. */
-export interface UnwindPick { id: string; title: string; kind: "series" | "film" | "documentary"; year?: string; why: string; area?: string; where?: string; url: string; lang?: string; level?: string; tip?: string }
+/**
+ * `watch`: where to watch it free and legally (a full film on its official YouTube channel, a free
+ * broadcaster or library service), checked; `free` when that's free; `trailer`: its official trailer
+ * on YouTube; `thumb`: a picture for it (from the free video or the trailer).
+ */
+export interface UnwindPick { id: string; title: string; kind: "series" | "film" | "documentary"; year?: string; why: string; area?: string; where?: string; url: string; lang?: string; level?: string; tip?: string; watch?: string; free?: boolean; trailer?: string; thumb?: string }
 /** `language`: films and series in the languages you're learning, chosen with the week's picks. */
-export interface UnwindSet { week: string; items: UnwindPick[]; at: number; language?: UnwindPick[] }
+export interface UnwindSet { week: string; items: UnwindPick[]; at: number; language?: UnwindPick[]; made?: boolean }
+
+/* ---------- Saved, activity and interests Lumen notices ---------- */
+/** A link you saved (like Selah's Saved): videos and podcasts play inside Lumen, articles open. */
+export interface SavedLink {
+  id: string; url: string; title: string; kind: ItemKind; platform: string; creator?: string; thumb?: string; embed?: string;
+  folder: string; note?: string; tags: string[]; savedAt: number; done?: boolean; from?: "you" | "share" | "selah";
+}
+/** One thing you did that says something about what interests you. Kept on your Drive, never sent anywhere but your own AI. */
+export interface Activity { kind: "save" | "like" | "dislike" | "search" | "finish" | "add"; text: string; area?: string; at: number }
+/** An interest Lumen noticed in your activity and asked you about. */
+export interface InterestSuggestion { id: string; name: string; cat: Category; why: string; evidence: string[]; at: number; status: "open" | "added" | "later" | "no"; until?: number }
+export interface InterestsState { lastRun: number; lastCount: number; suggestions: InterestSuggestion[] }
 
 /** Every document Lumen stores, by name. Each is one JSON file in the user's Lumen folder. */
 export interface Docs {
@@ -150,6 +168,9 @@ export interface Docs {
   newsSources: Record<string, string[]>;
   unwind: UnwindSet[];
   games: GameScore[];
+  saved: SavedLink[];
+  activity: Activity[];
+  interests: InterestsState;
 }
 export type DocName = keyof Docs;
 

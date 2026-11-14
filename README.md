@@ -34,6 +34,9 @@ Lumen runs on each person's own tools:
 | Reminders: a daily calendar event (Google Calendar or .ics) and a notification while Lumen is open or installed | Done |
 | News from X: an X account as a trusted source allows only that account's posts, shown inside Lumen | Done |
 | Play: Pairs (built from your flashcards) and Target (reach a number with + − × ÷) | Done |
+| Saved (like Selah's): paste or share any link; folders, notes, tags, search, done; videos, clips and podcasts play inside Lumen; import Selah's Saved spreadsheet | Done |
+| Interests that grow with you: what you save, like, search for and finish is noted on your Drive; your own AI spots new interests that keep coming up and asks before adding any, in the section you choose | Done |
+| Films: a picture for every pick, free-to-watch first (official YouTube uploads, free broadcasters and libraries), full films and trailers play inside Lumen | Done |
 
 The full product spec and the clickable prototype are linked from the project conversation.
 

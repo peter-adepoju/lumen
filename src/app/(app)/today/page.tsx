@@ -12,6 +12,7 @@ import { TodaysReading } from "@/components/books";
 import { LightOrb, useLight } from "@/components/light";
 import { NewsBrief } from "@/components/news";
 import { LanguageFilms, UnwindList } from "@/components/unwind";
+import { InterestNotice } from "@/components/interests";
 import { unwindTime } from "@/lib/practice-ai";
 
 export default function Today() {
@@ -69,6 +70,8 @@ export default function Today() {
               </span>
             </div>
           </Card>
+
+          <InterestNotice />
 
           <Card className="flex flex-col gap-3 lg:gap-4 lg:p-7">
             {isReviewDay(now) ? (

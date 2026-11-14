@@ -1,7 +1,7 @@
 // Recommendations: the person's own Gemini key (with Google Search) suggests
 // specific, real items; Lumen's link checker confirms each one; anything the
 // person blocked or rated down is dropped. Runs on the device.
-import type { Added, Area, Block, Docs, Feedback, Format, Item, ItemKind, PickSet, Profile } from "./model";
+import type { Added, Area, Block, Docs, Feedback, Format, Item, ItemKind, PickSet, Profile, SavedLink } from "./model";
 import { generateJson } from "./gemini";
 
 export interface Suggestion { kind: ItemKind; title: string; creator?: string; url?: string; why?: string; notice?: string; minutes?: number }
@@ -78,12 +78,21 @@ export const checkLinks: Checker = async cands => {
   return (await res.json()).items;
 };
 
+/** Saved links that belong to an area (by folder, tag or title), as things the person chose themselves. */
+export function savedFor(area: Area, saved: SavedLink[] | undefined): Added[] {
+  const words = area.name.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+  return (saved ?? []).filter(s => {
+    const hay = `${s.folder} ${s.tags.join(" ")} ${s.title}`.toLowerCase();
+    return words.length > 0 && words.every(w => hay.includes(w));
+  }).slice(0, 8).map(s => ({ url: s.url, source: s.platform, area: area.name, title: s.title, creator: s.creator, why: s.note?.slice(0, 120), at: s.savedAt }));
+}
+
 /** Finds today's picks for one area. */
 export async function findPicks(args: { key: string; area: Area; docs: Partial<Docs>; count?: number; check?: Checker; ask?: typeof generateJson }): Promise<Item[]> {
   const { key, area, docs } = args;
   const ask = args.ask ?? generateJson, check = args.check ?? checkLinks;
   const exclude = (docs.picks ?? []).filter(s => s.area === area.id).flatMap(s => s.items.map(i => i.title));
-  const prompt = buildPrompt({ area, profile: docs.profile!, blocked: docs.blocked ?? [], feedback: docs.feedback ?? [], added: docs.added ?? [], exclude, count: args.count ?? 6 });
+  const prompt = buildPrompt({ area, profile: docs.profile!, blocked: docs.blocked ?? [], feedback: docs.feedback ?? [], added: [...(docs.added ?? []), ...savedFor(area, docs.saved)], exclude, count: args.count ?? 6 });
   const raw = await ask<Suggestion[]>(key, prompt, { search: true });
   const sugg = (Array.isArray(raw) ? raw : []).filter(s => s && typeof s.title === "string").slice(0, 10);
   const checked = await check(sugg);

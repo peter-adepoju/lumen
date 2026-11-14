@@ -1,4 +1,5 @@
 "use client";
+import { logActivity } from "@/lib/activity";
 // The user's library. Each book is kept in Lumen's reading format on the device
 // (for offline reading) and, when signed in, in the Books folder of their Drive,
 // next to the original file they uploaded.
@@ -61,6 +62,7 @@ export async function importFile(file: File, onStep?: (s: string) => void): Prom
 export interface Classic { id: number; title: string; author: string; cover: string }
 
 export async function searchClassics(q: string): Promise<Classic[]> {
+  logActivity("search", `book: ${q}`);
   const r = await fetch("/api/books/search?q=" + encodeURIComponent(q));
   if (!r.ok) throw new ImportError("Couldn't reach Project Gutenberg. Try again in a moment.");
   return (await r.json()).items;

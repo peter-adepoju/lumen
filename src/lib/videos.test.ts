@@ -73,3 +73,30 @@ describe("films for languages you're learning", () => {
     expect(p).toContain("Don't suggest: Old film");
   });
 });
+
+import { enrichPicks } from "./practice-ai";
+describe("film pictures and free-to-watch first", () => {
+  const base = { why: "", kind: "film" as const };
+  it("checks links, adds a picture and puts free ones first", async () => {
+    const picks = [
+      { ...base, id: "a", title: "Paid film", url: "https://en.wikipedia.org/wiki/A", trailer: "https://www.youtube.com/watch?v=AAAAAAAAAAA", free: false },
+      { ...base, id: "b", title: "Free film", url: "https://en.wikipedia.org/wiki/B", watch: "https://www.youtube.com/watch?v=BBBBBBBBBBB", free: true },
+      { ...base, id: "c", title: "Bad links", url: "https://en.wikipedia.org/wiki/C", watch: "https://example.org/gone", free: true, trailer: "https://www.youtube.com/watch?v=CCCCCCCCCCC" },
+    ];
+    const known: Record<string, { url: string; thumb?: string } | null> = {
+      "https://www.youtube.com/watch?v=AAAAAAAAAAA": { url: "x", thumb: "https://i.ytimg.com/vi/AAAAAAAAAAA/hqdefault.jpg" },
+      "https://www.youtube.com/watch?v=BBBBBBBBBBB": { url: "x", thumb: "https://i.ytimg.com/vi/BBBBBBBBBBB/hqdefault.jpg" },
+      "https://example.org/gone": null, "https://www.youtube.com/watch?v=CCCCCCCCCCC": null,
+      "https://en.wikipedia.org/wiki/C": { url: "x", thumb: "https://upload.wikimedia.org/poster.jpg" },
+    };
+    const out = await enrichPicks(picks, async urls => urls.map(u => known[u] ?? null));
+    expect(out.map(p => p.id)).toEqual(["b", "a", "c"]);
+    expect(out[0]).toMatchObject({ free: true, thumb: "https://i.ytimg.com/vi/BBBBBBBBBBB/hqdefault.jpg" });
+    expect(out[1]).toMatchObject({ free: false, trailer: "https://www.youtube.com/watch?v=AAAAAAAAAAA", thumb: "https://i.ytimg.com/vi/AAAAAAAAAAA/hqdefault.jpg" });
+    expect(out[2]).toMatchObject({ free: false, watch: undefined, trailer: undefined, thumb: "https://upload.wikimedia.org/poster.jpg" });
+  });
+  it("keeps the picks if checking fails", async () => {
+    const p = [{ ...base, id: "a", title: "A", url: "https://x.org" }];
+    expect(await enrichPicks(p, async () => { throw new Error("offline"); })).toEqual(p);
+  });
+});

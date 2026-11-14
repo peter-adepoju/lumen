@@ -8,6 +8,7 @@ import { useTheme } from "@/lib/theme";
 import { KeyForm } from "@/components/key-form";
 import { NewsSources } from "@/components/news";
 import { InstallCard, ReminderCard } from "@/components/reminder";
+import { InterestNotice } from "@/components/interests";
 import Link from "next/link";
 import { SyncDot } from "@/components/sync-dot";
 import { Button, Card, Chip, cn, PageTitle, Row, Segmented, Switch } from "@/components/ui";
@@ -135,6 +136,8 @@ export default function You() {
           <Button variant="ghost" size="sm" type="submit">Block</Button>
         </form>
       </Card>
+
+      <InterestNotice manual />
 
       <ReminderCard p={p} />
 

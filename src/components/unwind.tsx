@@ -1,29 +1,66 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import type { UnwindPick, UnwindSet } from "@/lib/model";
+import type { Item, UnwindPick, UnwindSet } from "@/lib/model";
+import { itemId } from "@/lib/links";
+import { Player } from "./player";
 import { isoWeek, languageFilmPicks, unwindPicks } from "@/lib/practice-ai";
 import { aiProblem } from "@/lib/gemini";
 import { store, useStore } from "@/lib/store/store";
 import { Button, Card, Chip } from "./ui";
 
 async function saveWeek(set: UnwindSet) {
-  const next = { ...set, at: Date.now() };
+  const next = { ...set, made: true, at: Date.now() };
   await store.update("unwind", l => [...(l ?? []).filter(x => x.week !== set.week), next].slice(-26));
 }
 
 const KIND = { series: "Series", film: "Film", documentary: "Documentary" } as const;
 
+const isYouTube = (u?: string) => !!u && /^https:\/\/(www\.|m\.)?(youtube\.com|youtu\.be)\//.test(u);
+const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
+
 function PickRow({ pick, onSkip }: { pick: UnwindPick; onSkip: () => void }) {
+  const [play, setPlay] = useState<"film" | "trailer" | null>(null);
+  const filmHere = pick.free && isYouTube(pick.watch);
+  const playUrl = play === "film" ? pick.watch : play === "trailer" ? pick.trailer : undefined;
+  const asItem = (url: string): Item => ({ id: itemId(url), kind: "video", url, title: pick.title, creator: "", platform: "YouTube", thumb: pick.thumb, area: pick.area ?? "unwind" });
   return (
-    <li className="flex flex-col gap-1.5 border-t border-border py-3 first:border-t-0 first:pt-0">
-      <div className="flex items-center gap-2 text-[12px] text-muted"><Chip>{KIND[pick.kind]}</Chip>{pick.level && <Chip>{pick.level[0].toUpperCase() + pick.level.slice(1)}</Chip>}{pick.year && <span>{pick.year}</span>}{pick.area && !pick.lang && <span className="truncate">· {pick.area}</span>}</div>
+    <li className="flex flex-col gap-2 border-t border-border py-3 first:border-t-0 first:pt-0">
+      {playUrl ? (
+        <div className="flex flex-col gap-1">
+          <Player key={playUrl} item={asItem(playUrl)} />
+          <button onClick={() => setPlay(null)} className="self-end text-[12.5px] text-muted underline underline-offset-4">Close video</button>
+        </div>
+      ) : pick.thumb ? (
+        <button onClick={() => (filmHere ? setPlay("film") : pick.trailer ? setPlay("trailer") : window.open(pick.watch ?? pick.url, "_blank", "noopener"))}
+          aria-label={filmHere ? `Watch ${pick.title}` : pick.trailer ? `Play the trailer of ${pick.title}` : `Open ${pick.title}`}
+          className="group relative block aspect-video w-full overflow-hidden rounded-[12px] border border-border bg-surface-2">
+          <img src={pick.thumb} alt="" loading="lazy" className="h-full w-full object-cover" onError={e => { e.currentTarget.style.visibility = "hidden"; }} />
+          {(filmHere || pick.trailer) && (
+            <span className="absolute inset-0 grid place-items-center">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-black/65 px-3.5 py-2 text-[13px] font-medium text-white transition-transform group-hover:scale-105">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M8 5v14l11-7z" /></svg>
+                {filmHere ? "Watch free here" : "Trailer"}
+              </span>
+            </span>
+          )}
+        </button>
+      ) : null}
+      <div className="flex flex-wrap items-center gap-2 text-[12px] text-muted">
+        <Chip>{KIND[pick.kind]}</Chip>
+        {pick.free && <span className="rounded-full border border-success px-2 py-px text-success">Free</span>}
+        {pick.level && <Chip>{pick.level[0].toUpperCase() + pick.level.slice(1)}</Chip>}
+        {pick.year && <span>{pick.year}</span>}{pick.area && !pick.lang && <span className="truncate">· {pick.area}</span>}
+      </div>
       <a href={pick.url} target="_blank" rel="noopener noreferrer" className="font-display text-[22px] leading-tight hover:underline hover:underline-offset-4">{pick.title}</a>
       {pick.why && <p className="text-[13.5px]">{pick.why}</p>}
       {pick.tip && <p className="text-[13px] text-muted"><span className="font-medium text-fg">How to watch it to learn: </span>{pick.tip}</p>}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        {pick.where ? <p className="text-[12.5px] text-muted">Watch on {pick.where}</p> : <span />}
-        <button onClick={onSkip} className="text-[12.5px] text-muted underline underline-offset-4 hover:text-fg">Not my thing</button>
+      <div className="flex flex-wrap items-center gap-2">
+        {filmHere && !play && <Button size="sm" onClick={() => setPlay("film")}>Watch free in Lumen</Button>}
+        {pick.free && pick.watch && !filmHere && <a href={pick.watch} target="_blank" rel="noopener noreferrer" className="rounded-full border border-success px-3 py-1 text-[12.5px] font-medium text-success hover:bg-surface-2">Watch free on {host(pick.watch)}</a>}
+        {pick.trailer && play !== "trailer" && <button onClick={() => setPlay("trailer")} className="rounded-full border border-border px-3 py-1 text-[12.5px] hover:bg-surface-2">Trailer</button>}
+        {!pick.free && pick.where && <span className="text-[12.5px] text-muted">Watch on {pick.where}</span>}
+        <button onClick={onSkip} className="ml-auto text-[12.5px] text-muted underline underline-offset-4 hover:text-fg">Not my thing</button>
       </div>
     </li>
   );
@@ -36,7 +73,9 @@ export function UnwindList({ compact }: { compact?: boolean }) {
   const [now] = useState(() => new Date());
   const week = isoWeek(now);
   const sets = s.get("unwind") ?? [];
-  const set = sets.find(x => x.week === week);
+  const found = sets.find(x => x.week === week);
+  // A week that only has language films so far hasn't had its weekend picks made yet.
+  const set = found && (found.made || !found.language) ? found : undefined;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -46,7 +85,7 @@ export function UnwindList({ compact }: { compact?: boolean }) {
     try {
       const avoid = [...sets.flatMap(x => x.items.map(i => i.title)), ...(store.get("blocked") ?? []).filter(b => b.type === "item").map(b => b.value)];
       const items = await unwindPicks(ai.key, store.get("profile")!, avoid);
-      await saveWeek({ week, items, at: 0 });
+      await saveWeek({ ...(found ?? {}), week, items, at: 0 });
     } catch (e) { setErr(aiProblem(e, "Couldn't find picks. Try again.")); }
     finally { setBusy(false); }
   }
