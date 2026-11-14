@@ -179,7 +179,10 @@ export interface Docs {
   saved: SavedLink[];
   activity: Activity[];
   interests: InterestsState;
+  dailyReading: DailyReading;
 }
+/** Today's reading per book (a whole chapter, section or theme), and the theme splits the AI made for long chapters. */
+export interface DailyReading { plans: Record<string, import("./books/daily").DailyPlan>; themes: Record<string, Record<number, import("./books/daily").ThemeCut[]>> }
 export type DocName = keyof Docs;
 
 export const CATEGORY_NAME: Record<Category, string> = {

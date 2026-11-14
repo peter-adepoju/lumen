@@ -17,7 +17,7 @@ export function createReader() {
     sepia: { name: "Sepia", bg: "#EADBBE", fg: "#3B2C1B", muted: "#8A7458", desk: "#2F241A" },
     night: { name: "Night", bg: "#1E1C19", fg: "#D8CFBF", muted: "#7C7365", desk: "#0D0C0B" }
   };
-  const DEFAULTS = { font: "garamond", size: 19, lh: 1.6, margin: "normal", justify: true, theme: "paper", bright: 100, warm: 10, turn: "none", sound: true, spread: "auto", pagesPerDay: 5 };
+  const DEFAULTS = { font: "garamond", size: 19, lh: 1.6, margin: "normal", justify: true, theme: "paper", bright: 100, warm: 10, turn: "none", sound: true, spread: "auto", readMinutes: 20 };
   const WPM = 230;
 
   let book = null, S = null, ui = {}, layout = null, pageCounts = [], opts = {}, open = false, measureKey = "";
@@ -564,14 +564,14 @@ export function createReader() {
       <div class="rd-row"><label for="rd-bright">Brightness</label><input id="rd-bright" type="range" min="40" max="100" value="${s.bright}" data-set="bright"></div>
       <div class="rd-row"><label for="rd-warm">Warmth</label><input id="rd-warm" type="range" min="0" max="100" value="${s.warm}" data-set="warm"></div>
       <div class="rd-row"><label for="rd-sound">Page sound</label><input id="rd-sound" type="checkbox" class="rd-switch" data-set="sound" ${s.sound ? "checked" : ""}></div>
-      <div class="rd-row"><span>Daily pages</span>${seg("pagesPerDay", [[3, "3"], [5, "5"], [10, "10"], [20, "20"]], s.pagesPerDay)}</div>`;
+      <div class="rd-row"><span>Daily reading</span>${seg("readMinutes", [[10, "10m"], [15, "15m"], [20, "20m"], [30, "30m"], [45, "45m"]], s.readMinutes)}</div>`;
   }
   async function fontsReady(f) {
     try { await Promise.race([document.fonts.load(`400 19px ${FONTS[f][0].split(",")[0]}`), new Promise(r => setTimeout(r, 1500))]); await document.fonts.ready; } catch {}
   }
   async function setSetting(k, v) {
     const s = S.settings;
-    if (k === "size" || k === "bright" || k === "warm" || k === "pagesPerDay") v = +v;
+    if (k === "size" || k === "bright" || k === "warm" || k === "readMinutes") v = +v;
     else if (k === "lh") v = +v; else if (k === "justify") v = v === true || v === "true"; else if (k === "sound") v = !!v;
     s[k] = v; save();
     if (k === "bright" || k === "warm" || k === "theme") { applyTheme(); }

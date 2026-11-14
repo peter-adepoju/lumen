@@ -1,10 +1,12 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
-import type { LibraryEntry, Shelf } from "@/lib/model";
-import { moveBook, readingPlan, removeBook, todaysBook } from "@/lib/books/library";
+import { useEffect, useMemo, useState } from "react";
+import type { BookDoc, LibraryEntry, Shelf } from "@/lib/model";
+import { loadBook, moveBook, removeBook, todaysBook } from "@/lib/books/library";
+import { boundaries, planProgress, planText, planToday, positionOf, themePrompt, toThemeCuts, unitsOf, WPM, type DailyPlan } from "@/lib/books/daily";
+import { aiProblem, generateJson } from "@/lib/gemini";
 import { today } from "@/lib/recs";
-import { useStore } from "@/lib/store/store";
+import { store, useStore } from "@/lib/store/store";
 import { Button, Card, cn, SectionTitle } from "./ui";
 
 export function Cover({ book, className }: { book: Pick<LibraryEntry, "title" | "author" | "cover">; className?: string }) {
@@ -47,38 +49,145 @@ export function BookCard({ book }: { book: LibraryEntry }) {
   );
 }
 
-/** Today's reading: a few pages a day from where you stopped. */
+const KIND_LABEL: Record<DailyPlan["kind"], string> = { chapter: "A whole chapter", chapters: "Short chapters, read whole", section: "A complete section", theme: "One theme", part: "Part of a long chapter" };
+const MINUTES = [10, 15, 20, 30, 45];
+
+/**
+ * Today's plan for a book: worked out once a day from where you are, as a whole chapter or section
+ * (by its headings, or by theme with your own AI for long chapters without them).
+ */
+function useDailyPlan(book: LibraryEntry | null, day: string, minutes: number) {
+  const s = useStore();
+  const saved = book ? s.get("dailyReading")?.plans[book.id] : undefined;
+  const st = book ? s.get("reading")?.[book.id] : undefined;
+  const [doc, setDoc] = useState<BookDoc | null>(null);
+  const [state, setState] = useState<"loading" | "ready" | "none">("loading");
+  useEffect(() => {
+    let live = true;
+    if (!book) return;
+    loadBook(book.id).then(d => { if (live) { setDoc(d); setState(d ? "ready" : "none"); } }).catch(() => live && setState("none"));
+    return () => { live = false; };
+  }, [book?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const units = useMemo(() => (doc ? unitsOf(doc) : []), [doc]);
+  const pos = doc ? positionOf(doc, st) : 0;
+
+  // Make (or remake) today's plan: once a day, or when your reading time changes.
+  useEffect(() => {
+    if (!book || !doc || !units.length) return;
+    if (saved && saved.day === day && saved.minutes === minutes) return;
+    const themes = store.get("dailyReading")?.themes[book.id] ?? {};
+    let plan = planToday(doc, units, boundaries(doc, units, themes), pos, minutes, day);
+    if (!plan) return;
+    const write = (p: DailyPlan) => store.update("dailyReading", d => ({ plans: { ...(d?.plans ?? {}), [book.id]: { ...p, minutes } }, themes: d?.themes ?? {} }));
+    void write(plan);
+    // A long chapter with no headings: ask your AI to split it by theme, then plan again.
+    const ai = store.get("ai");
+    const ch = units[plan.start]?.ch;
+    if (plan.kind === "part" && ai?.mode === "own" && ai.key && ch != null && !themes[ch]) {
+      const c = doc.chapters[ch];
+      generateJson<unknown>(ai.key, themePrompt(c.title, c.paras, minutes * WPM)).then(async raw => {
+        const cuts = toThemeCuts(raw, c.paras.length);
+        if (!cuts.length) return;
+        const all = { ...themes, [ch]: cuts };
+        await store.update("dailyReading", d => ({ plans: d?.plans ?? {}, themes: { ...(d?.themes ?? {}), [book.id]: all } }));
+        plan = planToday(doc, units, boundaries(doc, units, all), pos, minutes, day);
+        if (plan) {
+          let first = 0;
+          for (let k = 0; k < ch; k++) first += doc.chapters[k].paras.length;
+          const cut = cuts.find(x => first + x.start === plan!.start) ?? [...cuts].reverse().find(x => first + x.start < plan!.start);
+          await write({ ...plan, ...(cut?.about ? { about: cut.about } : {}) });
+        }
+      }).catch(() => {});
+    }
+  }, [book?.id, doc, day, minutes, saved?.day, saved?.minutes]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const plan = saved && saved.day === day ? saved : null;
+  const progress = plan && units.length ? planProgress(units, plan, pos) : null;
+  return { plan, progress, doc, units, state };
+}
+
+/** Today's reading: one complete piece of a book, sized to your reading time, from where you stopped. */
 export function TodaysReading({ compact = false }: { compact?: boolean }) {
   const s = useStore();
   const lib = s.get("library");
   const [day] = useState(() => today());
   const book = todaysBook(lib, day);
-  const per = Number(s.get("readerSettings")?.pagesPerDay ?? 5);
+  const minutes = Number(s.get("readerSettings")?.readMinutes ?? 20);
+  const { plan, progress, doc, units, state } = useDailyPlan(book, day, minutes);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const ai = s.get("ai");
   if (!book) return compact ? null : (
     <Card className="flex flex-col gap-2">
       <p className="font-medium">Your shelf is empty</p>
-      <p className="text-[13.5px] text-muted">Add a book you own, or download a free classic below. Lumen will plan a few pages for you each day.</p>
+      <p className="text-[13.5px] text-muted">Add a book you own, or download a free classic below. Lumen will plan a complete chapter or section for you each day.</p>
     </Card>
   );
-  const plan = readingPlan(book, s.get("reading")?.[book.id], day, per);
+  const setMinutes = (m: number) => store.set("readerSettings", { ...(store.get("readerSettings") ?? {}), readMinutes: m });
+  const firstWords = (() => {
+    if (!plan || !doc || plan.about) return plan?.about;
+    for (let i = plan.start; i < Math.min(plan.end, plan.start + 4); i++) {
+      const u = units[i];
+      const t = doc.chapters[u.ch]?.paras[u.i] ?? "";
+      if (!u.heading && t.length > 40) return t.replace(/\s+/g, " ").slice(0, 170).replace(/\s\S*$/, "") + "…";
+    }
+    return undefined;
+  })();
+  async function learn() {
+    if (!plan || !doc || ai?.mode !== "own" || !ai.key) return;
+    setBusy(true); setErr(null);
+    try {
+      const raw = await generateJson<unknown>(ai.key, `Here is a passage someone read today from "${book!.title}" by ${book!.author} (${plan.title}). Give the 3 to 5 key ideas they should take away, each one short, concrete sentence in plain words, in the order they come.\n\n${planText(doc, units, plan)}\n\nReply with JSON only: ["…", "…"]`);
+      const takeaways = (Array.isArray(raw) ? raw : []).map(x => String(x).slice(0, 220)).filter(Boolean).slice(0, 5);
+      if (takeaways.length) await store.update("dailyReading", d => ({ plans: { ...(d?.plans ?? {}), [book!.id]: { ...plan, takeaways } }, themes: d?.themes ?? {} }));
+      else setErr("No key ideas came back. Try again.");
+    } catch (e) { setErr(aiProblem(e, "Couldn't get the key ideas. Try again.")); }
+    setBusy(false);
+  }
+  const done = !!progress?.done;
+  const pct = Math.round((progress?.fraction ?? 0) * 100);
   return (
     <>
-      {compact && <SectionTitle right={`${per} pages a day`}>Today&apos;s reading</SectionTitle>}
+      {compact && <SectionTitle right={`About ${minutes} min a day`}>Today&apos;s reading</SectionTitle>}
       <Card className="flex flex-col gap-3">
         <div className="flex items-start gap-3.5">
           <Cover book={book} className="w-[52px]" />
-          <div className="min-w-0">
-            <p className="font-medium">{book.title}</p>
-            <p className="text-[12.5px] text-muted">{book.author} · {plan.done ? "today's pages read" : plan.from === plan.to ? `page ${plan.from}` : `pages ${plan.from}–${plan.to}`}{book.at?.chapter ? ` · ${book.at.chapter}` : ""}</p>
+          <div className="min-w-0 flex-1">
+            {plan ? <>
+              <p className="eyebrow">{KIND_LABEL[plan.kind]} · about {Math.max(1, Math.round(plan.words / WPM))} min</p>
+              <p className="font-display text-[21px] leading-tight">{plan.title}</p>
+              <p className="text-[12.5px] text-muted">{book.title} · {book.author}</p>
+            </> : <>
+              <p className="font-medium">{book.title}</p>
+              <p className="text-[12.5px] text-muted">{book.author} · {state === "none" ? "open the book once on this device to plan its reading" : "planning today's reading…"}</p>
+            </>}
           </div>
         </div>
-        <div>
-          <div className="flex justify-between text-[12.5px]"><span>{plan.done ? plan.size : plan.read} of {plan.size} page{plan.size === 1 ? "" : "s"}</span>{book.at && <span className="text-muted">{book.at.pct}% through the book</span>}</div>
-          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-surface-2"><div className="h-full bg-[var(--lang)]" style={{ width: `${((plan.done ? plan.size : plan.read) / plan.size) * 100}%` }} /></div>
-        </div>
-        <div className="flex items-center justify-between gap-3">
-          {plan.done ? <span className="text-[13px] font-medium text-[var(--lang)]">✓ Done for today</span> : <span className="text-[12.5px] text-muted">{!book.at ? "From the first page" : plan.read > 0 ? `Today's pages start at page ${plan.from}` : `From page ${plan.from}, where you stopped`}</span>}
-          <Link href={`/read/${book.id}`} className="shrink-0 rounded-full bg-primary px-3.5 py-1.5 text-[13px] font-medium text-on-primary">{plan.done ? "Keep reading" : book.at ? `Continue at page ${book.at.page}` : "Start reading"}</Link>
+        {plan && firstWords && !done && <p className="text-[13.5px] text-muted">{firstWords}</p>}
+        {plan && !done && plan.next && <p className="text-[12.5px] text-muted">Stop when you reach <span className="font-medium text-fg">“{plan.next}”</span>. That&apos;s the end of today&apos;s piece.</p>}
+        {plan && (
+          <div>
+            <div className="flex justify-between text-[12.5px]"><span>{done ? "Read today" : pct ? `${pct}% of today's piece` : "Not started"}</span>{book.at && <span className="text-muted">{book.at.pct}% through the book</span>}</div>
+            <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-surface-2"><div className="h-full bg-[var(--lang)]" style={{ width: `${done ? 100 : pct}%` }} /></div>
+          </div>
+        )}
+        {done && plan?.takeaways && (
+          <div className="flex flex-col gap-1.5 rounded-[12px] bg-surface-2 p-3">
+            <span className="eyebrow">What you learned</span>
+            <ul className="list-disc space-y-1 pl-4 text-[13.5px]">{plan.takeaways.map(t => <li key={t}>{t}</li>)}</ul>
+          </div>
+        )}
+        {err && <p role="alert" className="text-[13px] text-danger">{err}</p>}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {done ? <span className="text-[13px] font-medium text-[var(--lang)]">✓ {plan?.title}: done for today</span>
+            : <span className="flex items-center gap-1 text-[12px] text-muted">Reading time
+                <select aria-label="Reading time a day" value={minutes} onChange={e => void setMinutes(Number(e.target.value))} className="rounded-[8px] border border-border bg-surface-2 px-1.5 py-0.5 text-[12.5px]">
+                  {MINUTES.map(m => <option key={m} value={m}>{m} min</option>)}
+                </select></span>}
+          <span className="flex gap-2">
+            {done && !plan?.takeaways && ai?.mode === "own" && <Button size="sm" variant="ghost" disabled={busy} onClick={learn}>{busy ? "Thinking…" : "What did I learn?"}</Button>}
+            <Link href={`/read/${book.id}`} className="shrink-0 rounded-full bg-primary px-3.5 py-1.5 text-[13px] font-medium text-on-primary">{done ? "Keep reading" : progress?.fraction ? "Carry on" : book.at ? "Start today's piece" : "Start reading"}</Link>
+          </span>
         </div>
       </Card>
     </>
