@@ -5,6 +5,7 @@ import type { Area, Item, NewsItem, NewsSet, NewsStatus, NewsVideo } from "@/lib
 import { channelPrompt, defaultChannels, faviconFor, isVideoSource, markFresh, normaliseVideoSource, rankPrompt, relevantVideos, toStories, withoutBlocked, type Headline } from "@/lib/news";
 import { itemId } from "@/lib/links";
 import { Player } from "./player";
+import { playOnStage } from "@/lib/stage";
 import { generateJson } from "@/lib/gemini";
 import { today } from "@/lib/recs";
 import { store, useStore } from "@/lib/store/store";
@@ -100,7 +101,7 @@ function Videos({ videos, topic, compact }: { videos: NewsVideo[]; topic: string
       <ul className="no-scrollbar -mx-1 flex snap-x gap-2.5 overflow-x-auto px-1 pb-1">
         {list.map(v => (
           <li key={v.id} className="w-[200px] shrink-0 snap-start">
-            <button onClick={() => setPlaying(v.id)} aria-label={`Play: ${v.title}`} className={cn("group flex w-full flex-col gap-1.5 text-left", playing === v.id && "opacity-60")}>
+            <button onClick={() => { setPlaying(v.id); playOnStage(asItem(v), location.pathname + location.search); }} aria-label={`Play: ${v.title}`} className={cn("group flex w-full flex-col gap-1.5 text-left", playing === v.id && "opacity-60")}>
               <span className="relative block aspect-video w-full overflow-hidden rounded-[10px] border border-border bg-surface-2">
                 <img src={v.thumb} alt="" loading="lazy" className="h-full w-full object-cover" onError={e => { e.currentTarget.style.visibility = "hidden"; }} />
                 <span className="absolute inset-0 grid place-items-center">

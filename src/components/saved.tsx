@@ -8,6 +8,7 @@ import { logActivity } from "@/lib/activity";
 import { store, useStore } from "@/lib/store/store";
 import { Button, Card, cn, Pill } from "./ui";
 import { Player } from "./player";
+import { playOnStage } from "@/lib/stage";
 import { SourceIcon } from "./news";
 
 async function check(url: string): Promise<Checked | null> {
@@ -86,11 +87,11 @@ function SavedRow({ s, all, startOpen }: { s: SavedLink; all: string[]; startOpe
       {open && canPlay && (
         <div className="flex flex-col gap-1">
           <Player item={asItem(s)} />
-          <button onClick={() => setOpen(false)} className="self-end text-[12.5px] text-muted underline underline-offset-4">Close</button>
+          <button onClick={() => setOpen(false)} className="self-end text-[12.5px] text-muted underline underline-offset-4" title="The video keeps playing in the corner">Hide</button>
         </div>
       )}
       <div className="flex gap-3">
-        <button onClick={() => (canPlay ? setOpen(o => !o) : window.open(s.url, "_blank", "noopener"))} aria-label={canPlay ? `Play ${s.title}` : `Open ${s.title}`}
+        <button onClick={() => { if (!canPlay) { window.open(s.url, "_blank", "noopener"); return; } setOpen(true); playOnStage(asItem(s), location.pathname + location.search); }} aria-label={canPlay ? `Play ${s.title}` : `Open ${s.title}`}
           className="relative h-[68px] w-[120px] shrink-0 overflow-hidden rounded-[10px] border border-border bg-surface-2">
           {pic
             ? <img src={pic} alt="" loading="lazy" className="h-full w-full object-cover" onError={e => { e.currentTarget.style.visibility = "hidden"; }} />

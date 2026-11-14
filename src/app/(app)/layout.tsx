@@ -6,6 +6,7 @@ import { store, useStore } from "@/lib/store/store";
 import { useTheme } from "@/lib/theme";
 import { useReminder, useServiceWorker } from "@/components/pwa";
 import { usePlaylistWatch } from "@/components/playlist-watch";
+import { Stage } from "@/components/player";
 
 /**
  * Two layouts from one set of pages:
@@ -29,6 +30,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       </main>
       <SiteFooter />
       <BottomNav />
+      <Stage />
     </div>
   );
 }

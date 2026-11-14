@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Item, UnwindPick, UnwindSet } from "@/lib/model";
 import { itemId } from "@/lib/links";
 import { Player } from "./player";
+import { playOnStage } from "@/lib/stage";
 import { isoWeek, languageFilmPicks, unwindPicks } from "@/lib/practice-ai";
 import { aiProblem } from "@/lib/gemini";
 import { store, useStore } from "@/lib/store/store";
@@ -20,7 +21,12 @@ const isYouTube = (u?: string) => !!u && /^https:\/\/(www\.|m\.)?(youtube\.com|y
 const host = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
 
 function PickRow({ pick, onSkip }: { pick: UnwindPick; onSkip: () => void }) {
-  const [play, setPlay] = useState<"film" | "trailer" | null>(null);
+  const [play, setPlayRaw] = useState<"film" | "trailer" | null>(null);
+  const setPlay = (v: "film" | "trailer" | null) => {
+    setPlayRaw(v);
+    const u = v === "film" ? pick.watch : v === "trailer" ? pick.trailer : undefined;
+    if (u) playOnStage(asItem(u), location.pathname + location.search);
+  };
   const filmHere = pick.free && isYouTube(pick.watch);
   const playUrl = play === "film" ? pick.watch : play === "trailer" ? pick.trailer : undefined;
   const asItem = (url: string): Item => ({ id: itemId(url), kind: "video", url, title: pick.title, creator: "", platform: "YouTube", thumb: pick.thumb, area: pick.area ?? "unwind" });
