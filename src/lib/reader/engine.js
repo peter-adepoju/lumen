@@ -539,7 +539,7 @@ export function createReader() {
     } catch {}
     speaking = false; ui.aloud.classList.remove("on"); ui.aloud.querySelector("span").textContent = "Read aloud";
   }
-  function stopAloud() { try { speechSynthesis.cancel(); } catch {} speaking = false; ui.aloud.classList.remove("on"); ui.aloud.querySelector("span").textContent = "Read aloud"; }
+  function stopAloud() { try { speechSynthesis.cancel(); } catch {} speaking = false; if (!ui.aloud) return; ui.aloud.classList.remove("on"); ui.aloud.querySelector("span").textContent = "Read aloud"; }
 
   /* ---------------- Sheets ---------------- */
   function openSheet(kind) {

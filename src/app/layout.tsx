@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import "./globals.css";
+import { Stage } from "@/components/player";
 
 export const metadata: Metadata = {
   title: "Lumen",
@@ -23,7 +24,11 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-dvh">{children}</body>
+      <body className="min-h-dvh">
+        {children}
+        {/* The one player, above every page (the reader included), so music and videos keep playing as you move around. */}
+        <Suspense fallback={null}><Stage /></Suspense>
+      </body>
     </html>
   );
 }

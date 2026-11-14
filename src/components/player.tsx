@@ -211,6 +211,27 @@ export function Stage() {
   const pseudo = !!item && pseudoFor === item.id;
   const landscape = useMedia(LANDSCAPE_PHONE);
   const wide = useMedia("(min-width: 1024px)");
+  const path = usePathname();
+  // Pages with Lumen's tab bar at the bottom (not the reader, setup or the public pages).
+  const tabBar = !/^\/(read|setup|about|privacy|terms)(\/|$)/.test(path) && path !== "/";
+  const [corner, setCorner] = useState<"br" | "bl" | "tr" | "tl">(() => { try { return (localStorage.getItem("lumen:mini-corner") as "br") || "br"; } catch { return "br"; } });
+  const [drag, setDrag] = useState<{ x: number; y: number; dx: number; dy: number } | null>(null);
+  const dragging = useRef<{ dx: number; dy: number } | null>(null);
+  const dragStart = (e: React.PointerEvent) => {
+    const b = box.current?.getBoundingClientRect();
+    if (!b) return;
+    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch {}
+    dragging.current = { dx: e.clientX - b.left, dy: e.clientY - b.top };
+    setDrag({ x: b.left, y: b.top, dx: dragging.current.dx, dy: dragging.current.dy });
+  };
+  const dragMove = (e: React.PointerEvent) => { const d = dragging.current; if (d) setDrag({ x: e.clientX - d.dx, y: e.clientY - d.dy, ...d }); };
+  const dragEnd = (e: React.PointerEvent) => {
+    if (!dragging.current) return;
+    dragging.current = null;
+    const c = `${e.clientY < innerHeight / 2 ? "t" : "b"}${e.clientX < innerWidth / 2 ? "l" : "r"}` as "br";
+    setCorner(c); setDrag(null);
+    try { localStorage.setItem("lumen:mini-corner", c); } catch {}
+  };
 
   useEffect(() => { stageEl = box.current; pseudoFull = v => setPseudoFor(v ? (item?.id ?? null) : null); }, [item]);
   useEffect(() => {
@@ -255,12 +276,16 @@ export function Stage() {
   const mini = !rect && !fill && !stg.full;
   const tall = item.kind === "clip" && kind === "embed";
   const miniW = kind === "audio" ? Math.min(360, (typeof innerWidth !== "undefined" ? innerWidth : 360) - 32) : wide ? 320 : 220;
+  // The mini-player sits in a corner you choose (drag it), clear of the tab bar where there is one.
+  const low = tabBar && !wide ? "calc(78px + env(safe-area-inset-bottom))" : "calc(16px + env(safe-area-inset-bottom))";
+  const high = "calc(16px + env(safe-area-inset-top))";
+  const at = drag ? { left: drag.x, top: drag.y } : { [corner.includes("r") ? "right" : "left"]: 16, [corner.includes("b") ? "bottom" : "top"]: corner.includes("b") ? low : high };
   const style: React.CSSProperties = stg.full ? {} : fill ? { inset: 0 } : rect ? { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
-    : { right: 16, bottom: wide ? 24 : "calc(78px + env(safe-area-inset-bottom))", width: miniW };
+    : { ...at, width: miniW };
 
   return (
     <div ref={box} style={style} data-video-frame=""
-      className={cn("z-[60] overflow-hidden", stg.full ? "grid place-items-center bg-black" : "fixed", fill && "z-[90] bg-black", rect && !fill && !stg.full && "rounded-[12px]", mini && "flex flex-col rounded-[14px] border border-border bg-surface shadow-[0_8px_30px_rgba(0,0,0,0.25)]", kind === "audio" && !mini && "bg-transparent")}>
+      className={cn("z-[70] overflow-hidden", stg.full ? "grid place-items-center bg-black" : "fixed", fill && "z-[90] bg-black", rect && !fill && !stg.full && "rounded-[12px]", mini && "flex flex-col rounded-[14px] border border-border bg-surface shadow-[0_8px_30px_rgba(0,0,0,0.25)]", kind === "audio" && !mini && "bg-transparent")}>
       {kind === "audio" ? (
         <div className={cn("flex items-center gap-2", mini ? "p-2" : "h-full")}>
           <AudioEngine item={item} />
@@ -275,7 +300,11 @@ export function Stage() {
         </div>
       )}
       {mini && (
-        <div className="flex items-center gap-1 px-2 py-1.5">
+        <div className="flex items-center gap-1 px-1.5 py-1.5">
+          <span onPointerDown={dragStart} onPointerMove={dragMove} onPointerUp={dragEnd} onPointerCancel={() => { dragging.current = null; setDrag(null); }} title="Drag to move" aria-label="Drag to move the player"
+            className="grid size-8 shrink-0 cursor-grab touch-none place-items-center rounded-full text-muted hover:bg-surface-2 active:cursor-grabbing">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden><circle cx="9" cy="6" r="1.6" /><circle cx="15" cy="6" r="1.6" /><circle cx="9" cy="12" r="1.6" /><circle cx="15" cy="12" r="1.6" /><circle cx="9" cy="18" r="1.6" /><circle cx="15" cy="18" r="1.6" /></svg>
+          </span>
           <button onClick={() => router.push(stg.home)} className="min-w-0 flex-1 truncate text-left text-[12.5px] font-medium hover:underline" title="Back to where it was playing">{item.title}</button>
           {kind !== "embed" && (
             <button aria-label={stg.playing ? "Pause" : "Play"} onClick={() => (stg.playing ? stageCommands().pause?.() : stageCommands().play?.())} className="grid size-8 shrink-0 place-items-center rounded-full hover:bg-surface-2">
