@@ -1,8 +1,10 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import type { Area, NewsItem, NewsSet, NewsStatus } from "@/lib/model";
-import { markFresh, rankPrompt, toStories, withoutBlocked, type Headline } from "@/lib/news";
+import type { Area, Item, NewsItem, NewsSet, NewsStatus, NewsVideo } from "@/lib/model";
+import { channelPrompt, defaultChannels, faviconFor, isVideoSource, markFresh, normaliseVideoSource, rankPrompt, relevantVideos, toStories, withoutBlocked, type Headline } from "@/lib/news";
+import { itemId } from "@/lib/links";
+import { Player } from "./player";
 import { generateJson } from "@/lib/gemini";
 import { today } from "@/lib/recs";
 import { store, useStore } from "@/lib/store/store";
@@ -24,16 +26,100 @@ const STATUS_STYLE: Record<NewsStatus, string> = {
  * Without a key, or if the AI is busy, you get the newest headlines.
  */
 export async function fetchBrief(key: string | undefined, topic: Area, day = today()): Promise<NewsSet> {
-  const sources = store.get("newsSources")?.[topic.id] ?? [];
-  const r = await fetch(`/api/news?${new URLSearchParams({ topic: topic.name, sources: sources.join(",") })}`);
+  const allSources = store.get("newsSources")?.[topic.id] ?? [];
+  const sources = allSources.filter(x => !isVideoSource(x));
+  const blocked = store.get("blocked") ?? [];
+  const [r, vids] = await Promise.all([
+    fetch(`/api/news?${new URLSearchParams({ topic: topic.name, sources: sources.join(",") })}`),
+    fetchVideos(key, topic, allSources.filter(isVideoSource)).catch(() => null),
+  ]);
   if (!r.ok) throw new Error(r.status === 429 ? "slow_down" : "unavailable");
-  const all = withoutBlocked(((await r.json()).items ?? []) as Headline[], store.get("blocked") ?? []);
+  const all = withoutBlocked(((await r.json()).items ?? []) as Headline[], blocked);
   let raw: unknown = null;
   if (key && all.length) { try { raw = await generateJson<unknown>(key, rankPrompt(topic.name, all, 10)); } catch {} }
   const before = store.get("news")?.find(s => s.topic === topic.id && s.day === day);
-  const set: NewsSet = { topic: topic.id, day, items: markFresh(toStories(raw, all, topic.id, 10), before?.items), at: Date.now() };
+  const set: NewsSet = {
+    topic: topic.id, day, items: markFresh(toStories(raw, all, topic.id, 10), before?.items), at: Date.now(),
+    ...(vids ? { videos: relevantVideos(vids.videos, topic.name, blocked), videoChannels: vids.channels } : before?.videos ? { videos: before.videos, videoChannels: before.videoChannels } : {}),
+  };
   await store.update("news", l => [...(l ?? []).filter(s => !(s.topic === topic.id && s.day === day)), set].slice(-60));
   return set;
+}
+
+/**
+ * Videos for a topic: from the YouTube channels you listed for it; otherwise from channels suggested
+ * for the topic (by your AI, once, then remembered), or a few established outlets to start from.
+ */
+async function fetchVideos(key: string | undefined, topic: Area, mine: string[]): Promise<{ videos: (NewsVideo & { channel: string })[]; channels: string[] }> {
+  let channels = mine;
+  if (!channels.length) {
+    const earlier = [...(store.get("news") ?? [])].reverse().find(s => s.topic === topic.id && s.videoChannels?.length)?.videoChannels;
+    if (earlier) channels = earlier;
+    else if (key) {
+      try {
+        const raw = await generateJson<unknown>(key, channelPrompt(topic.name));
+        channels = (Array.isArray(raw) ? raw : []).map(x => normaliseVideoSource(String(x))).filter((x): x is string => !!x).slice(0, 4);
+      } catch {}
+    }
+    if (!channels.length) channels = defaultChannels(topic.name);
+  }
+  const r = await fetch(`/api/news/videos?${new URLSearchParams({ channels: channels.join(",") })}`);
+  if (!r.ok) throw new Error("videos " + r.status);
+  const j = (await r.json()) as { videos?: (NewsVideo & { channel: string })[]; unknown?: string[] };
+  // Channels YouTube doesn't know (a mistyped or made-up handle) aren't tried again.
+  const known = channels.filter(c => !(j.unknown ?? []).includes(c));
+  return { videos: j.videos ?? [], channels: mine.length ? mine : known.length ? known : defaultChannels(topic.name) };
+}
+
+/** The outlet's own little icon, or its first letter when there isn't one. */
+export function SourceIcon({ url, name, size = 14 }: { url?: string; name: string; size?: number }) {
+  const [broken, setBroken] = useState(false);
+  const src = faviconFor(url);
+  if (!src || broken) return <span aria-hidden className="inline-grid shrink-0 place-items-center rounded-[4px] bg-surface-2 text-[9px] font-semibold uppercase text-muted" style={{ width: size, height: size }}>{name.trim()[0] ?? "·"}</span>;
+  return <img src={src} alt="" width={size} height={size} loading="lazy" onError={() => setBroken(true)} className="shrink-0 rounded-[3px]" style={{ width: size, height: size }} />;
+}
+
+/** A row of news videos; tapping one plays it here (no related videos, and Lumen remembers where you stopped). */
+function Videos({ videos, topic, compact }: { videos: NewsVideo[]; topic: string; compact?: boolean }) {
+  const [playing, setPlaying] = useState<string | null>(null);
+  const list = compact ? videos.slice(0, 4) : videos;
+  const current = list.find(v => v.id === playing);
+  const asItem = (v: NewsVideo): Item => ({ id: itemId(v.url), kind: "video", url: v.url, title: v.title, creator: v.channel, platform: "YouTube", thumb: v.thumb, area: topic });
+  if (!list.length) return null;
+  return (
+    <div className="flex flex-col gap-2">
+      {current && (
+        <div className="flex flex-col gap-1.5">
+          <Player key={current.id} item={asItem(current)} />
+          <div className="flex items-center gap-2 text-[12.5px] text-muted">
+            <SourceIcon url="https://www.youtube.com" name="YouTube" /> <span className="truncate">{current.channel}</span>
+            <button onClick={() => setPlaying(null)} className="ml-auto underline underline-offset-4">Close video</button>
+          </div>
+        </div>
+      )}
+      <ul className="no-scrollbar -mx-1 flex snap-x gap-2.5 overflow-x-auto px-1 pb-1">
+        {list.map(v => (
+          <li key={v.id} className="w-[200px] shrink-0 snap-start">
+            <button onClick={() => setPlaying(v.id)} aria-label={`Play: ${v.title}`} className={cn("group flex w-full flex-col gap-1.5 text-left", playing === v.id && "opacity-60")}>
+              <span className="relative block aspect-video w-full overflow-hidden rounded-[10px] border border-border bg-surface-2">
+                <img src={v.thumb} alt="" loading="lazy" className="h-full w-full object-cover" onError={e => { e.currentTarget.style.visibility = "hidden"; }} />
+                <span className="absolute inset-0 grid place-items-center">
+                  <span className="grid size-9 place-items-center rounded-full bg-black/60 text-white transition-transform group-hover:scale-105">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M8 5v14l11-7z" /></svg>
+                  </span>
+                </span>
+              </span>
+              <span className="line-clamp-2 text-[13px] font-medium leading-snug">{v.title}</span>
+              <span className="flex items-center gap-1.5 text-[11.5px] text-muted">
+                <SourceIcon url="https://www.youtube.com" name="YouTube" size={12} />
+                <span className="truncate">{v.channel} · {new Date(v.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 /** The post's id when a story links to a single X post. */
@@ -73,6 +159,7 @@ function Story({ n }: { n: NewsItem }) {
       <div className="flex items-center gap-2 text-[11.5px]">
         <span className={cn("rounded-full border px-2 py-px", STATUS_STYLE[n.status])}>{n.status}</span>
         {n.fresh && <span className="rounded-full bg-[var(--gold-soft)] px-2 py-px font-medium text-fg">New</span>}
+        <SourceIcon url={n.sourceUrl} name={n.source} />
         <span className="truncate text-muted">{n.source}{n.date ? ` · ${new Date(n.date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}</span>
       </div>
       <a href={n.url} target="_blank" rel="noopener noreferrer" className="font-medium leading-snug hover:underline hover:underline-offset-4">{n.title}</a>
@@ -129,6 +216,12 @@ export function NewsBrief({ topics, compact = false }: { topics: Area[]; compact
             <p className="eyebrow">{t.name}</p>
             {set.items.length ? <ul className="flex flex-col">{(compact ? set.items.slice(0, PREVIEW) : set.items).map(n => <Story key={n.id} n={n} />)}</ul>
               : <p className="text-[13px] text-muted">No news from your trusted sources in the last two days.</p>}
+            {!!set.videos?.length && (
+              <div className="flex flex-col gap-2 pt-1">
+                <p className="text-[12px] font-medium text-muted">Watch</p>
+                <Videos videos={set.videos} topic={t.id} compact={compact} />
+              </div>
+            )}
             {ai?.mode !== "own" && set.items.length > 0 && <p className="text-[12px] text-muted">Newest headlines. With your Gemini key, Lumen picks the most important and labels them.</p>}
           </div>
         );
@@ -156,7 +249,7 @@ export function NewsSources({ topics }: { topics: Area[] }) {
   return (
     <Card className="flex flex-col">
       <span className="eyebrow mb-1">News sources</span>
-      <p className="mb-1 text-[13px] text-muted">Each brief uses only the websites you list, from Google News. Leave a topic empty for headlines from all outlets Google News covers. Add a website, e.g. manutd.com or bbc.co.uk.</p>
+      <p className="mb-1 text-[13px] text-muted">Each brief uses only the websites you list, from Google News. Leave a topic empty for headlines from all outlets Google News covers. Add a website, e.g. manutd.com or bbc.co.uk, or a YouTube channel for videos, e.g. youtube.com/@SkySportsNews. Without your own channels, Lumen picks official ones for the topic.</p>
       {topics.map(t => {
         const list = all[t.id] ?? [];
         return (
@@ -165,18 +258,19 @@ export function NewsSources({ topics }: { topics: Area[] }) {
             <div className="flex flex-wrap gap-1.5">
               {list.length === 0 && <span className="text-[12.5px] text-muted">Any trusted outlet</span>}
               {list.map(src => (
-                <span key={src} className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-0.5 text-[12.5px]">{src}
+                <span key={src} className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-0.5 text-[12.5px]"><SourceIcon url={isVideoSource(src) ? "https://www.youtube.com" : src} name={src} size={12} />{isVideoSource(src) ? src.replace(/^youtube\.com\//, "") + " (YouTube)" : src}
                   <button aria-label={`Remove ${src}`} className="text-muted hover:text-danger" onClick={() => save(t.id, list.filter(x => x !== src))}>×</button></span>
               ))}
             </div>
             <form className="flex gap-2" onSubmit={e => {
               e.preventDefault();
-              const v = (draft[t.id] ?? "").trim().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "").replace(/^twitter\.com/, "x.com");
+              const typed = (draft[t.id] ?? "").trim();
+              const v = normaliseVideoSource(typed) ?? typed.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "").replace(/^twitter\.com/, "x.com");
               if (v && !list.includes(v)) save(t.id, [...list, v].slice(0, 20));
               setDraft(d => ({ ...d, [t.id]: "" }));
             }}>
               <label htmlFor={`src-${t.id}`} className="sr-only">Add a source for {t.name}</label>
-              <input id={`src-${t.id}`} value={draft[t.id] ?? ""} onChange={e => setDraft(d => ({ ...d, [t.id]: e.target.value }))} placeholder="e.g. manutd.com" className="min-w-0 flex-1 rounded-[10px] border border-border bg-surface px-3 py-1.5 text-[14px]" />
+              <input id={`src-${t.id}`} value={draft[t.id] ?? ""} onChange={e => setDraft(d => ({ ...d, [t.id]: e.target.value }))} placeholder="manutd.com or youtube.com/@SkySportsNews" className="min-w-0 flex-1 rounded-[10px] border border-border bg-surface px-3 py-1.5 text-[14px]" />
               <Button variant="ghost" size="sm" type="submit">Add</Button>
             </form>
           </div>

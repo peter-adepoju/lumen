@@ -18,6 +18,8 @@ export interface Profile {
   createdAt: number;
   /** A daily reminder at a local clock time, e.g. "19:00". */
   reminder?: { on: boolean; time: string };
+  /** How well you speak each language you're learning (by area id), for film suggestions. */
+  langLevels?: Record<string, "beginner" | "intermediate" | "advanced">;
 }
 
 export type SessionPart = "Warm-up" | "Learn" | "Practise" | "Reflect" | "News brief" | "Today's reading" | "Unwind picks" | "Games";
@@ -118,10 +120,15 @@ export interface GameScore { kind: "pairs" | "target"; score: number; day: strin
 /* ---------- News and Unwind ---------- */
 export type NewsStatus = "Confirmed" | "Reported" | "Rumour" | "Fixture" | "Research";
 /** `fresh`: arrived with your latest refresh (it wasn't in the brief you had before). */
-export interface NewsItem { id: string; topic: string; title: string; summary: string; status: NewsStatus; source: string; url: string; date?: string; fresh?: boolean }
-export interface NewsSet { topic: string; day: string; items: NewsItem[]; at: number }
-export interface UnwindPick { id: string; title: string; kind: "series" | "film" | "documentary"; year?: string; why: string; area?: string; where?: string; url: string }
-export interface UnwindSet { week: string; items: UnwindPick[]; at: number }
+export interface NewsItem { id: string; topic: string; title: string; summary: string; status: NewsStatus; source: string; url: string; date?: string; fresh?: boolean; sourceUrl?: string }
+/** A news video from a YouTube channel (an outlet's, a club's, a league's). */
+export interface NewsVideo { id: string; title: string; channel: string; date: string; thumb: string; url: string }
+/** `videoChannels`: the YouTube channels the videos came from (yours, or suggested for the topic). */
+export interface NewsSet { topic: string; day: string; items: NewsItem[]; at: number; videos?: NewsVideo[]; videoChannels?: string[] }
+/** `lang`, `level` and `tip` are set on picks chosen to help with a language you're learning. */
+export interface UnwindPick { id: string; title: string; kind: "series" | "film" | "documentary"; year?: string; why: string; area?: string; where?: string; url: string; lang?: string; level?: string; tip?: string }
+/** `language`: films and series in the languages you're learning, chosen with the week's picks. */
+export interface UnwindSet { week: string; items: UnwindPick[]; at: number; language?: UnwindPick[] }
 
 /** Every document Lumen stores, by name. Each is one JSON file in the user's Lumen folder. */
 export interface Docs {

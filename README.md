@@ -27,8 +27,8 @@ Lumen runs on each person's own tools:
 | Today's reading: a few pages a day from where you stopped, taking turns between books | Done |
 | Practice: spaced-repetition flashcards (your own, AI-made per area, or from book highlights), digit span and odd-one-out drills, AI quizzes on any area; all earn lumens | Done |
 | Progress: streak, lumens and level, 12-week heatmap, levels per area, drill trends, and what Lumen knows about you (editable) | Done |
-| News: a daily brief per followed topic from your trusted sources (websites or X accounts, set on You), labelled Confirmed, Reported, Rumour, Fixture or Research; same story once; every link checked | Done |
-| Unwind: a few films, series or documentaries each week, fun first with something useful inside; on Today from Friday to Sunday or every 7th streak day | Done |
+| News: a daily brief per followed topic from your trusted sources (websites or X accounts, set on You), labelled Confirmed, Reported, Rumour, Fixture or Research; same story once; every link checked; each outlet's icon; **videos** from YouTube channels (yours, or official ones Lumen picks for the topic, e.g. Sky Sports), played inside Lumen | Done |
+| Unwind: a few films, series or documentaries each week, fun first with something useful inside; on Today from Friday to Sunday or every 7th streak day. **Learn through film**: shows made in each language you're learning, at your level, with a tip on how to watch each to learn | Done |
 | Weekly review on Sundays: the week in numbers, private reflection, star areas for next week; keeps the streak | Done |
 | Works offline and installs as an app (service worker, phone icons, shortcuts) | Done |
 | Reminders: a daily calendar event (Google Calendar or .ics) and a notification while Lumen is open or installed | Done |

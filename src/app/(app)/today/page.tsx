@@ -11,7 +11,7 @@ import { SyncDot } from "@/components/sync-dot";
 import { TodaysReading } from "@/components/books";
 import { LightOrb, useLight } from "@/components/light";
 import { NewsBrief } from "@/components/news";
-import { UnwindList } from "@/components/unwind";
+import { LanguageFilms, UnwindList } from "@/components/unwind";
 import { unwindTime } from "@/lib/practice-ai";
 
 export default function Today() {
@@ -152,6 +152,7 @@ export default function Today() {
             <>
               <SectionTitle right={<Link href="/unwind" className="underline underline-offset-4">Unwind</Link>}>Time off</SectionTitle>
               <UnwindList compact />
+              {p.areas.some(a => a.cat === "lang" && a.freq !== "Paused") && <LanguageFilms compact />}
             </>
           )}
           {p.steps.Games && (

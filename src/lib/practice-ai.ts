@@ -89,6 +89,45 @@ export async function unwindPicks(key: string, p: Profile, avoid: string[], n = 
     : []).slice(0, n);
 }
 
+/**
+ * Films and series that help with the languages you're learning: made in that language (not dubbed),
+ * at a level you can follow, with a tip on how to watch them to learn.
+ */
+export function languageFilmPrompt(langs: { name: string; level?: string }[], avoid: string[], perLanguage = 3): string {
+  return [
+    `Suggest ${perLanguage} films or TV series for each of these languages, for someone learning them: ${langs.map(l => `${l.name}${l.level ? ` (level: ${l.level})` : ""}`).join(", ")}.`,
+    `Each must be originally made in that language (not dubbed), enjoyable, and good for learning: clear everyday speech, a story easy enough to follow at the learner's level (start gentle: comedies, family dramas, slice-of-life, kids' and teen shows for beginners; faster or more regional speech for advanced learners). Mix well-loved classics with recent titles. For English as a learned language, prefer clearly spoken British or American shows.`,
+    avoid.length ? `Don't suggest: ${avoid.slice(-40).join("; ")}.` : "",
+    `Use Google Search to confirm each title exists. Give the official site or a reliable reference page (for example Wikipedia) as the url, and the most common place to stream it, noting it varies by country.`,
+    `Reply with JSON only: [{"lang": "the language", "title": "original title (English title)", "kind": "series|film|documentary", "year": "YYYY", "level": "beginner|intermediate|advanced", "why": "one sentence: why it's good for learning this language", "tip": "one practical sentence on how to watch it to learn (e.g. which subtitles, which episodes, what to listen for)", "where": "e.g. Netflix (varies by country)", "url": "https://..."}]`,
+  ].filter(Boolean).join("\n");
+}
+
+export function toLanguagePicks(raw: unknown, langs: string[], perLanguage = 3): UnwindPick[] {
+  const known = new Map(langs.map(l => [l.toLowerCase(), l]));
+  const count = new Map<string, number>();
+  return (Array.isArray(raw) ? raw : []).flatMap((r: Record<string, unknown>) => {
+    if (!r || typeof r.title !== "string" || typeof r.url !== "string" || !/^https:\/\//.test(r.url)) return [];
+    const lang = known.get(String(r.lang ?? "").toLowerCase().trim()) ?? langs.find(l => String(r.lang ?? "").toLowerCase().includes(l.toLowerCase()));
+    if (!lang) return [];
+    const n = count.get(lang) ?? 0;
+    if (n >= perLanguage) return [];
+    count.set(lang, n + 1);
+    return [{
+      id: itemId(("lang:" + r.title).toLowerCase()), title: r.title.slice(0, 160), kind: (["series", "film", "documentary"].includes(r.kind as string) ? r.kind : "film") as UnwindPick["kind"],
+      year: r.year ? String(r.year).slice(0, 4) : undefined, why: String(r.why ?? "").slice(0, 240), area: lang, lang,
+      level: ["beginner", "intermediate", "advanced"].includes(String(r.level)) ? String(r.level) : undefined,
+      tip: r.tip ? String(r.tip).slice(0, 240) : undefined, where: r.where ? String(r.where).slice(0, 80) : undefined, url: r.url,
+    }];
+  });
+}
+
+export async function languageFilmPicks(key: string, langs: { name: string; level?: string }[], avoid: string[], perLanguage = 3): Promise<UnwindPick[]> {
+  if (!langs.length) return [];
+  const raw = await generateJson<unknown>(key, languageFilmPrompt(langs, avoid, perLanguage), { search: true });
+  return toLanguagePicks(raw, langs.map(l => l.name), perLanguage);
+}
+
 /** Unwind picks show on Friday to Sunday, or after a 7-day streak. */
 export function unwindTime(d: Date, streak: number): boolean {
   return d.getDay() === 5 || d.getDay() === 6 || d.getDay() === 0 || (streak > 0 && streak % 7 === 0);
