@@ -15,6 +15,10 @@ import { LanguageFilms, UnwindList } from "@/components/unwind";
 import { InterestNotice } from "@/components/interests";
 import { NewEpisodes } from "@/components/playlist-watch";
 import { unwindTime } from "@/lib/practice-ai";
+import { TodayTasks } from "@/components/today-tasks";
+import { dailyTasks } from "@/lib/day";
+import { dueCards } from "@/lib/practice";
+import { todaysBook } from "@/lib/books/library";
 
 export default function Today() {
   const s = useStore();
@@ -37,6 +41,26 @@ export default function Today() {
   const week = weekPlan(p.areas, p.planMode, now);
   const news = p.areas.filter(a => a.cat === "news" && a.freq !== "Paused");
   const pick = (id: string) => { setChoice(id); try { localStorage.setItem("lumen:choice:" + now.toDateString(), id); } catch {} };
+
+  // Everything to do today, from across the app, gathered into one checklist.
+  const cards = s.get("cards") ?? [];
+  const reading = s.get("reading") ?? {};
+  const book = todaysBook(s.get("library"), day);
+  const readingDone = !!(book && reading[book.id]?.day === day && (reading[book.id]?.readToday?.length ?? 0) > 0);
+  const tasks = dailyTasks({
+    steps: p.steps,
+    reviewDay: isReviewDay(now),
+    reviewed,
+    focusName: focus?.name ?? null,
+    sessionDone: doneToday,
+    sessionSteps: (["Warm-up", "Learn", "Practise", "Reflect"] as const).filter(x => p.steps[x]),
+    dueCount: dueCards(cards, day).length,
+    hasCards: cards.length > 0,
+    book: book ? { id: book.id, title: book.title } : null,
+    readingDone,
+    hasNews: news.length > 0,
+    unwind: unwindTime(now, streak),
+  });
   const dayName = (d: Date) => (d.getDay() === 0 ? "Weekly review" : p.planMode === "I choose each day" ? "Your choice" : weekFocus(d) ?? "—");
   const weekFocus = (d: Date) => week.find(w => w.date.toDateString() === d.toDateString())?.focus?.name;
 
@@ -72,6 +96,7 @@ export default function Today() {
             </div>
           </Card>
 
+          <TodayTasks tasks={tasks} />
           <InterestNotice />
           <NewEpisodes />
 
