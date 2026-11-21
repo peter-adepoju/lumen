@@ -122,6 +122,29 @@ function useMedia(q: string) {
   return useSyncExternalStore(cb => { const m = matchMedia(q); m.addEventListener("change", cb); return () => m.removeEventListener("change", cb); }, () => matchMedia(q).matches, () => false);
 }
 
+/**
+ * How far the browser's own top and bottom bars reach into the page right now. A fixed element
+ * sits in the layout viewport, so on a phone the address/tool bar can hide a corner-pinned
+ * mini-player below the screen; add these insets to keep it fully in view. Zero in an installed app.
+ */
+function useViewportInsets(): { top: number; bottom: number } {
+  const sub = (cb: () => void) => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!vv) return () => {};
+    vv.addEventListener("resize", cb); vv.addEventListener("scroll", cb);
+    return () => { vv.removeEventListener("resize", cb); vv.removeEventListener("scroll", cb); };
+  };
+  const read = (): { top: number; bottom: number } => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!vv) return ZERO_INSETS;
+    const top = Math.round(vv.offsetTop);
+    const bottom = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+    return top === 0 && bottom === 0 ? ZERO_INSETS : { top, bottom };
+  };
+  return useSyncExternalStore(sub, read, () => ZERO_INSETS);
+}
+const ZERO_INSETS = { top: 0, bottom: 0 }; // one stable object, so the store sees "no change"
+
 // ── The engines ───────────────────────────────────────────────────────────
 function YouTubeEngine({ item, host }: { item: Item; host: HTMLDivElement | null }) {
   useEffect(() => {
@@ -137,6 +160,7 @@ function YouTubeEngine({ item, host }: { item: Item; host: HTMLDivElement | null
         host: "https://www.youtube-nocookie.com", width: "100%", height: "100%", videoId: yt.video,
         playerVars: { rel: 0, modestbranding: 1, playsinline: 1, autoplay: 1, start },
         events: {
+          onReady: () => player?.playVideo?.(), // start playing even when it opens straight into the mini-player
           onStateChange: (e: { data: number }) => {
             if (e.data === 1) setPlaying(true);
             if (e.data === 2) setPlaying(false);
@@ -211,6 +235,7 @@ export function Stage() {
   const pseudo = !!item && pseudoFor === item.id;
   const landscape = useMedia(LANDSCAPE_PHONE);
   const wide = useMedia("(min-width: 1024px)");
+  const insets = useViewportInsets();
   const path = usePathname();
   // Pages with Lumen's tab bar at the bottom (not the reader, setup or the public pages).
   const tabBar = !/^\/(read|setup|about|privacy|terms)(\/|$)/.test(path) && path !== "/";
@@ -277,8 +302,8 @@ export function Stage() {
   const tall = item.kind === "clip" && kind === "embed";
   const miniW = kind === "audio" ? Math.min(360, (typeof innerWidth !== "undefined" ? innerWidth : 360) - 32) : wide ? 320 : 220;
   // The mini-player sits in a corner you choose (drag it), clear of the tab bar where there is one.
-  const low = tabBar && !wide ? "calc(78px + env(safe-area-inset-bottom))" : "calc(16px + env(safe-area-inset-bottom))";
-  const high = "calc(16px + env(safe-area-inset-top))";
+  const low = `calc(${tabBar && !wide ? 78 : 16}px + env(safe-area-inset-bottom) + ${insets.bottom}px)`;
+  const high = `calc(16px + env(safe-area-inset-top) + ${insets.top}px)`;
   const at = drag ? { left: drag.x, top: drag.y } : { [corner.includes("r") ? "right" : "left"]: 16, [corner.includes("b") ? "bottom" : "top"]: corner.includes("b") ? low : high };
   const style: React.CSSProperties = stg.full ? {} : fill ? { inset: 0 } : rect ? { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
     : { ...at, width: miniW };
