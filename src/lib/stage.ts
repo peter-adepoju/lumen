@@ -5,6 +5,7 @@
 
 import { useSyncExternalStore } from "react";
 import type { Item } from "./model";
+import { recordPlay } from "./watch";
 
 export interface StageCommands { play?(): void; pause?(): void; jump?(videoId: string, seconds?: number): void }
 
@@ -30,6 +31,7 @@ export function useStage() { return useSyncExternalStore(cb => { subs.add(cb); r
 export function playOnStage(item: Item, home: string) {
   if (s.item?.id === item.id) { commands.play?.(); return; }
   commands = {};
+  recordPlay(item); // count what you watch, for Progress
   set({ item, home, playing: false });
 }
 export function closeStage() { commands = {}; set({ item: null, slot: null, playing: false }); }

@@ -18,12 +18,14 @@ export async function GET(req: NextRequest) {
   const tok = await exchangeCode(p.get("code")!, saved.verifier, req.nextUrl.origin);
   if (!tok.access_token || !tok.id_token) return fail("error");
   if (!tok.refresh_token) return fail("no-offline");
-  if (!(tok as { scope?: string }).scope?.includes("drive.file")) return fail("no-drive");
+  const scope = (tok as { scope?: string }).scope ?? "";
+  if (!scope.includes("drive.file")) return fail("no-drive");
 
   const c = idClaims(tok.id_token);
   await writeSession({
     sub: c.sub, email: c.email, name: c.name ?? c.email, picture: c.picture,
     refreshToken: tok.refresh_token, accessToken: tok.access_token, accessExpires: Date.now() + (tok.expires_in - 60) * 1000,
+    youtube: scope.includes("youtube.readonly"),
   });
   const res = NextResponse.redirect(new URL(safeNext(saved.next), req.url));
   res.cookies.delete({ name: OAUTH_COOKIE, path: "/api/auth" });

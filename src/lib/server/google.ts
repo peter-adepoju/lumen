@@ -4,6 +4,8 @@ import { seal, unseal } from "./seal";
 
 /** What Lumen asks Google for: who you are, and access to files Lumen itself creates in your Drive. */
 export const SCOPES = ["openid", "email", "profile", "https://www.googleapis.com/auth/drive.file"];
+/** Added only when you choose to connect YouTube: read-only access to your subscriptions and likes. */
+export const YOUTUBE_SCOPE = "https://www.googleapis.com/auth/youtube.readonly";
 
 export const SESSION_COOKIE = "lumen_session";
 export const OAUTH_COOKIE = "lumen_oauth";
@@ -17,6 +19,7 @@ export interface Session {
   refreshToken: string;
   accessToken?: string;
   accessExpires?: number; // ms since epoch
+  youtube?: boolean; // the user granted read access to their YouTube subscriptions and likes
 }
 
 export function config() {

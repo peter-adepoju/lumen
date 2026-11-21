@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { Item, Progress } from "@/lib/model";
 import { youtubeIds } from "@/lib/links";
+import { addWatchSeconds } from "@/lib/watch";
 import { store } from "@/lib/store/store";
 import { closeStage, playOnStage, setCommands, setFull, setPlaying, setSlot, stage, stageCommands, useStage } from "@/lib/stage";
 import { PlaylistEngine, PlaylistPanel } from "./playlist-player";
@@ -145,9 +146,12 @@ function YouTubeEngine({ item, host }: { item: Item; host: HTMLDivElement | null
         },
       });
       setCommands({ play: () => player?.playVideo?.(), pause: () => player?.pauseVideo?.() });
+      let lastT = start; // seconds position at the previous tick, to add only real watch time
       timer = setInterval(() => {
         if (!player?.getCurrentTime) return;
         const s = player.getCurrentTime(), d = player.getDuration();
+        const played = s - lastT; lastT = s;
+        if (played > 0 && played < 12) addWatchSeconds(item.id, played); // ignore pauses and jumps
         if (s > 5) saveProgress(item.id, { seconds: Math.floor(s), duration: Math.floor(d) || undefined });
       }, 8000);
     });
@@ -163,7 +167,13 @@ function AudioEngine({ item }: { item: Item }) {
     if (!el) return;
     const saved = store.get("progress")?.[item.id];
     const onMeta = () => { if (saved && !saved.done && (saved.seconds ?? 0) > 10) el.currentTime = (saved.seconds ?? 0) - 3; void el.play().catch(() => {}); };
-    const onTime = () => { if (Math.floor(el.currentTime) % 10 === 0 && el.currentTime > 5) saveProgress(item.id, { seconds: Math.floor(el.currentTime), duration: Math.floor(el.duration) || undefined }); };
+    let lastT = 0, watchAcc = 0; // add watched time in ~10s batches, counting only real playback
+    const onTime = () => {
+      const t = el.currentTime, step = t - lastT; lastT = t;
+      if (step > 0 && step < 2) watchAcc += step; // small steps are playback; big ones are seeks
+      if (watchAcc >= 10) { addWatchSeconds(item.id, watchAcc); watchAcc = 0; }
+      if (Math.floor(t) % 10 === 0 && t > 5) saveProgress(item.id, { seconds: Math.floor(t), duration: Math.floor(el.duration) || undefined });
+    };
     const onEnd = () => {
       setPlaying(false);
       saveProgress(item.id, { seconds: Math.floor(el.duration), duration: Math.floor(el.duration), done: true });

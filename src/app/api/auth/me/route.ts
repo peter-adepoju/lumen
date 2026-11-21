@@ -6,7 +6,7 @@ export async function GET() {
   const { configured } = config();
   const s = await readSession();
   return NextResponse.json(
-    { googleConfigured: configured, user: s ? { sub: s.sub, email: s.email, name: s.name, picture: s.picture } : null },
+    { googleConfigured: configured, youtube: !!s?.youtube, user: s ? { sub: s.sub, email: s.email, name: s.name, picture: s.picture } : null },
     { headers: { "cache-control": "no-store" } },
   );
 }

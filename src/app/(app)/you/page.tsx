@@ -9,6 +9,7 @@ import { KeyForm } from "@/components/key-form";
 import { NewsSources } from "@/components/news";
 import { InstallCard, ReminderCard } from "@/components/reminder";
 import { InterestNotice } from "@/components/interests";
+import { YouTubeCard } from "@/components/youtube-sync";
 import Link from "next/link";
 import { SyncDot } from "@/components/sync-dot";
 import { Button, Card, Chip, cn, PageTitle, Row, Segmented, Switch } from "@/components/ui";
@@ -79,6 +80,8 @@ export default function You() {
           </details>
         </div>
       </Card>
+
+      <YouTubeCard />
 
       <Card className="flex flex-col">
         <div className="mb-1 flex items-baseline justify-between"><span className="eyebrow">Your areas</span><span className="text-[12px] text-muted">{p.areas.length}</span></div>
