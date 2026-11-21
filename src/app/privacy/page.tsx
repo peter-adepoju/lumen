@@ -20,6 +20,7 @@ export default function Privacy() {
 
       <H2>Google sign-in and Google Drive</H2>
       <p>When you sign in, Lumen asks Google for your name, email address and profile picture (to show who is signed in), and for access to <strong>only the Drive files Lumen creates</strong> (the <code>drive.file</code> permission). Lumen cannot see or change any other file in your Drive.</p>
+      <p>If you tap <strong>Connect YouTube</strong> on the You page, Lumen also asks for read-only access to your YouTube subscriptions and liked videos (the <code>youtube.readonly</code> permission), to understand your interests. This is optional, you can skip it, and it is read-only. Your YouTube watch history is never read — Google doesn&apos;t share it with any app. What you watch <em>inside Lumen</em> is counted on your own device and kept in your Drive, like everything else.</p>
       <p>To keep you signed in, Lumen&apos;s server places an encrypted cookie in your browser that holds your Google sign-in. The server uses it only to give your browser short-lived access to your own Lumen folder. The server does not keep a copy of it, or of your data.</p>
       <p>Lumen&apos;s use and transfer of information received from Google APIs adheres to the <A href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</A>, including the Limited Use requirements. Lumen does not use your Google data for advertising, does not sell it, does not let people read it, and does not use it to train AI models.</p>
 

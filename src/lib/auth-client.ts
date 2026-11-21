@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 
-export interface Me { googleConfigured: boolean; user: { sub: string; email: string; name: string; picture?: string } | null }
+export interface Me { googleConfigured: boolean; youtube?: boolean; user: { sub: string; email: string; name: string; picture?: string } | null }
 
 let cached: Promise<Me> | null = null;
 export function fetchMe(force = false): Promise<Me> {
@@ -21,6 +21,18 @@ export function useMe(): Me | null {
 
 export function googleSignInUrl(next: string) {
   return "/api/auth/google/start?next=" + encodeURIComponent(next);
+}
+
+/** Sign-in (or re-consent) that also asks for read access to your YouTube subscriptions and likes. */
+export function connectYouTubeUrl(next: string) {
+  return "/api/auth/google/start?extra=youtube&next=" + encodeURIComponent(next);
+}
+
+/** A short-lived Google access token for calling Google APIs (Drive, YouTube) from the device. */
+export async function getAccessToken(): Promise<string | null> {
+  const r = await fetch("/api/auth/token", { method: "POST" });
+  if (!r.ok) return null;
+  return (await r.json()).accessToken ?? null;
 }
 
 export async function signOut(disconnect = false) {

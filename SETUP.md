@@ -5,11 +5,12 @@ Lumen needs one thing from you as the builder: a Google sign-in client. Everythi
 ## 1. Create the Google sign-in client
 
 1. Open the [Google Cloud console](https://console.cloud.google.com/) and create a project called **Lumen**.
-2. Go to **APIs & Services → Library**, search for **Google Drive API** and click **Enable**.
+2. Go to **APIs & Services → Library**, search for **Google Drive API** and click **Enable**. To let people connect YouTube (optional), also enable the **YouTube Data API v3**.
 3. Go to **APIs & Services → OAuth consent screen** (called **Google Auth Platform** in newer consoles):
    - User type: **External**.
    - App name **Lumen**, your support email, and the app's address once it's deployed.
    - Scopes: add `openid`, `email`, `profile` and `.../auth/drive.file`. `drive.file` only lets Lumen see files it creates itself, so Google treats it as non-sensitive.
+   - For the optional **Connect YouTube** button, also add `.../auth/youtube.readonly`. This one is sensitive, so Google may ask you to verify the app before non-test users can use it; without it, everything else still works and the button simply isn't needed.
    - While testing, add your own Google account under **Test users**. Before opening Lumen to everyone, press **Publish app**.
 4. Go to **APIs & Services → Credentials → Create credentials → OAuth client ID**:
    - Application type: **Web application**.

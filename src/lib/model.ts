@@ -156,6 +156,17 @@ export interface Activity { kind: "save" | "like" | "dislike" | "search" | "fini
 export interface InterestSuggestion { id: string; name: string; cat: Category; why: string; evidence: string[]; at: number; status: "open" | "added" | "later" | "no"; until?: number }
 export interface InterestsState { lastRun: number; lastCount: number; suggestions: InterestSuggestion[] }
 
+/* ---------- What you watch, and your YouTube account ---------- */
+/** How much of one video, short or podcast you've watched inside Lumen. The key is the item's id. */
+export interface WatchStat { id: string; title: string; creator: string; platform: string; kind: ItemKind; area?: string; url: string; thumb?: string; plays: number; seconds: number; lastAt: number }
+
+/** A channel you follow on YouTube. */
+export interface YtChannel { id: string; title: string; thumb?: string; url: string }
+/** A video you liked on YouTube. */
+export interface YtVideo { id: string; title: string; channel: string; thumb?: string; url: string }
+/** Your YouTube subscriptions and liked videos, brought in from your account. Watch history isn't available (YouTube doesn't share it with any app). */
+export interface YouTubeState { connectedAt: number; syncedAt: number; subs: YtChannel[]; likes: YtVideo[] }
+
 /** Every document Lumen stores, by name. Each is one JSON file in the user's Lumen folder. */
 export interface Docs {
   profile: Profile;
@@ -180,6 +191,8 @@ export interface Docs {
   activity: Activity[];
   interests: InterestsState;
   dailyReading: DailyReading;
+  watches: Record<string, WatchStat>;
+  youtube: YouTubeState;
 }
 /** Today's reading per book (a whole chapter, section or theme), and the theme splits the AI made for long chapters. */
 export interface DailyReading { plans: Record<string, import("./books/daily").DailyPlan>; themes: Record<string, Record<number, import("./books/daily").ThemeCut[]>> }

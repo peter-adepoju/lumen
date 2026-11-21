@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useState } from "react";
 import type { DrillScore } from "@/lib/model";
 import { areaActivity, areaLevel, drillTrend, heatmap, tastes } from "@/lib/progress";
+import { topWatched } from "@/lib/watch";
 import { currentStreak, level, LEVELS } from "@/lib/stats";
 import { today } from "@/lib/recs";
 import { store, useStore } from "@/lib/store/store";
@@ -12,6 +13,8 @@ import { learningDays } from "@/lib/light";
 import { addDays } from "@/lib/practice";
 
 const fmtDay = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+// "watched" time as a short label: under a minute stays in seconds.
+const watchedLabel = (sec: number) => (sec >= 60 ? `${Math.round(sec / 60)} min watched` : sec > 0 ? `${sec}s watched` : "just started");
 // One hue, light to dark: minutes of practice on a day.
 const shade = (m: number) => (m === 0 ? "var(--surface-2)" : `color-mix(in srgb, var(--gold) ${m < 10 ? 30 : m < 20 ? 55 : m < 40 ? 78 : 100}%, var(--surface))`);
 
@@ -100,6 +103,7 @@ export default function Progress() {
   const reading = s.get("reading") ?? {};
   const cards = s.get("cards") ?? [];
   const t = tastes(feedback);
+  const watched = topWatched(s.get("watches"), 8);
   const highlights = Object.values(reading).reduce((n, r) => n + (r?.hl?.length ?? 0), 0);
   const minutes = sessions.reduce((n, x) => n + x.minutes, 0);
   const name = (id: string) => p.areas.find(a => a.id === id)?.name ?? id;
@@ -162,6 +166,28 @@ export default function Progress() {
         </div>
 
         <div className="flex flex-col gap-3.5">
+          {watched.length > 0 && (
+            <>
+              <SectionTitle right="What you play in Lumen">Most watched</SectionTitle>
+              <Card className="flex flex-col">
+                {watched.map((w, i) => (
+                  <Row key={w.id}>
+                    <span className="tabular w-5 shrink-0 text-right text-[13px] text-muted">{i + 1}</span>
+                    {w.thumb
+                      ? <img src={w.thumb} alt="" className="h-9 w-16 shrink-0 rounded-[6px] object-cover" />
+                      : <span className="grid h-9 w-16 shrink-0 place-items-center rounded-[6px] bg-surface-2 text-[11px] text-muted">{w.platform}</span>}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13.5px]">{w.title}</p>
+                      <p className="truncate text-[12px] text-muted">{[w.creator, w.platform].filter(Boolean).join(" · ")}</p>
+                    </div>
+                    <span className="shrink-0 text-right text-[12px] text-muted">{w.plays} play{w.plays === 1 ? "" : "s"}<br />{watchedLabel(w.seconds)}</span>
+                  </Row>
+                ))}
+                <p className="mt-2 text-[12px] text-muted">Counts whatever you play inside Lumen. This stays in your own Drive.</p>
+              </Card>
+            </>
+          )}
+
           <SectionTitle right={`${cards.length} flashcards${quizPct != null ? ` · quizzes ${quizPct}% right` : ""}`}>Practice</SectionTitle>
           <Card className="flex flex-col gap-5">
             <Trend title="Digit span" unit=" digits" scores={drillTrend(drills, "digit-span")} />
