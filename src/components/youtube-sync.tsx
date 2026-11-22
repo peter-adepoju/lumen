@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { connectYouTubeUrl, getAccessToken, googleSignInUrl, useMe } from "@/lib/auth-client";
+import { connectYouTubeUrl, getYouTubeToken, googleSignInUrl, useMe } from "@/lib/auth-client";
 import { logActivity } from "@/lib/activity";
 import { newLikes, syncYouTube } from "@/lib/youtube";
 import { store, useStore } from "@/lib/store/store";
@@ -19,10 +19,10 @@ export function YouTubeCard() {
   async function sync() {
     setBusy(true); setMsg("");
     try {
-      const token = await getAccessToken();
-      if (!token) { setMsg("Please connect Google again."); return; }
+      const tok = await getYouTubeToken();
+      if ("error" in tok) { setMsg(tok.error === "not_connected" ? "Tap Connect YouTube to allow access again." : "Please connect Google again."); return; }
       const prev = store.get("youtube");
-      const next = await syncYouTube(token, prev);
+      const next = await syncYouTube(tok.token, prev);
       await store.set("youtube", next);
       // Let Lumen notice interests from what you like, without flooding the log.
       for (const v of newLikes(prev, next).slice(0, 25)) logActivity("like", `${v.title} (${v.channel})`);

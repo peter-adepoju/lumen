@@ -28,11 +28,12 @@ export function connectYouTubeUrl(next: string) {
   return "/api/auth/google/start?extra=youtube&next=" + encodeURIComponent(next);
 }
 
-/** A short-lived Google access token for calling Google APIs (Drive, YouTube) from the device. */
-export async function getAccessToken(): Promise<string | null> {
-  const r = await fetch("/api/auth/token", { method: "POST" });
-  if (!r.ok) return null;
-  return (await r.json()).accessToken ?? null;
+/** A short-lived access token for the user's YouTube data (a separate grant from Drive). */
+export async function getYouTubeToken(): Promise<{ token: string } | { error: "not_connected" | "failed" }> {
+  const r = await fetch("/api/auth/youtube/token", { method: "POST" });
+  if (r.ok) { const j = await r.json(); return j.accessToken ? { token: j.accessToken } : { error: "failed" }; }
+  const j = await r.json().catch(() => ({}));
+  return { error: j.error === "not_connected" ? "not_connected" : "failed" };
 }
 
 export async function signOut(disconnect = false) {
