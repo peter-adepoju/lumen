@@ -2,10 +2,19 @@ import "server-only";
 import { cookies } from "next/headers";
 import { seal, unseal } from "./seal";
 
-/** What Lumen asks Google for: who you are, and access to files Lumen itself creates in your Drive. */
-export const SCOPES = ["openid", "email", "profile", "https://www.googleapis.com/auth/drive.file"];
+/** Who you are. */
+export const ID_SCOPES = ["openid", "email", "profile"];
+export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+/** What Lumen asks Google for at sign-in: who you are, and access to files Lumen itself creates in your Drive. */
+export const SCOPES = [...ID_SCOPES, DRIVE_SCOPE];
 /** Added only when you choose to connect YouTube: read-only access to your subscriptions and likes. */
 export const YOUTUBE_SCOPE = "https://www.googleapis.com/auth/youtube.readonly";
+/**
+ * Google refuses drive.file and youtube.readonly in one authorization request, so the YouTube
+ * connect asks for youtube.readonly on its own. With include_granted_scopes the Drive access
+ * granted at sign-in is kept, so the resulting token still works for both.
+ */
+export const YOUTUBE_CONNECT_SCOPES = [...ID_SCOPES, YOUTUBE_SCOPE];
 
 export const SESSION_COOKIE = "lumen_session";
 export const OAUTH_COOKIE = "lumen_oauth";
