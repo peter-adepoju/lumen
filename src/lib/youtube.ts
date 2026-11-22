@@ -7,9 +7,15 @@ import type { YouTubeState, YtChannel, YtVideo } from "./model";
 
 const API = "https://www.googleapis.com/youtube/v3";
 
+/** A failed YouTube call, carrying the HTTP status so the UI can explain what went wrong. */
+export class YouTubeError extends Error {
+  constructor(public status: number) { super("youtube-" + status); this.name = "YouTubeError"; }
+}
+
 type Thumbs = { default?: { url?: string }; medium?: { url?: string } };
 interface SubItem { snippet?: { title?: string; resourceId?: { channelId?: string }; thumbnails?: Thumbs } }
 interface VideoItem { id?: string; snippet?: { title?: string; channelTitle?: string; thumbnails?: Thumbs } }
+interface ChannelItem { snippet?: { title?: string } }
 
 const bestThumb = (t?: Thumbs) => t?.medium?.url ?? t?.default?.url;
 
@@ -39,7 +45,7 @@ async function allPages<T>(path: string, token: string, max: number): Promise<T[
   let page = "";
   do {
     const res = await fetch(`${API}/${path}${page ? `&pageToken=${page}` : ""}`, { headers: { authorization: "Bearer " + token } });
-    if (!res.ok) throw new Error("youtube-" + res.status);
+    if (!res.ok) throw new YouTubeError(res.status);
     const j = (await res.json()) as { items?: T[]; nextPageToken?: string };
     if (j.items) out.push(...j.items);
     page = j.nextPageToken ?? "";
@@ -47,9 +53,17 @@ async function allPages<T>(path: string, token: string, max: number): Promise<T[
   return out;
 }
 
-/** Fetches subscriptions and likes and returns the new YouTube state (keeping the first-connected time). */
+/** The name of the YouTube account these tokens belong to (its channel title), so the app can show
+ * which account is connected. Empty when the account has no channel. */
+export async function accountName(token: string): Promise<string | undefined> {
+  const items = await allPages<ChannelItem>("channels?part=snippet&mine=true&maxResults=1", token, 1);
+  return items[0]?.snippet?.title?.trim() || undefined;
+}
+
+/** Fetches the account name, subscriptions and likes, and returns the new YouTube state (keeping the first-connected time). */
 export async function syncYouTube(token: string, prev?: YouTubeState, now = Date.now()): Promise<YouTubeState> {
+  const account = await accountName(token);
   const subs = toChannels(await allPages<SubItem>("subscriptions?part=snippet&mine=true&maxResults=50&order=alphabetical", token, 500));
   const likes = toVideos(await allPages<VideoItem>("videos?part=snippet&myRating=like&maxResults=50", token, 500));
-  return { connectedAt: prev?.connectedAt ?? now, syncedAt: now, subs, likes };
+  return { connectedAt: prev?.connectedAt ?? now, syncedAt: now, account, subs, likes };
 }
