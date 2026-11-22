@@ -164,8 +164,8 @@ export interface WatchStat { id: string; title: string; creator: string; platfor
 export interface YtChannel { id: string; title: string; thumb?: string; url: string }
 /** A video you liked on YouTube. */
 export interface YtVideo { id: string; title: string; channel: string; thumb?: string; url: string }
-/** Your YouTube subscriptions and liked videos, brought in from your account. Watch history isn't available (YouTube doesn't share it with any app). */
-export interface YouTubeState { connectedAt: number; syncedAt: number; subs: YtChannel[]; likes: YtVideo[] }
+/** Your YouTube subscriptions and liked videos, brought in from your account. Watch history isn't available (YouTube doesn't share it with any app). `account` is the connected channel's name, so you can see which account it is. */
+export interface YouTubeState { connectedAt: number; syncedAt: number; subs: YtChannel[]; likes: YtVideo[]; account?: string }
 
 /** Every document Lumen stores, by name. Each is one JSON file in the user's Lumen folder. */
 export interface Docs {
