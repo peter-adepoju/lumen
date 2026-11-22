@@ -10,11 +10,11 @@ export const SCOPES = [...ID_SCOPES, DRIVE_SCOPE];
 /** Added only when you choose to connect YouTube: read-only access to your subscriptions and likes. */
 export const YOUTUBE_SCOPE = "https://www.googleapis.com/auth/youtube.readonly";
 /**
- * Google refuses drive.file and youtube.readonly in one authorization request, so the YouTube
- * connect asks for youtube.readonly on its own. With include_granted_scopes the Drive access
- * granted at sign-in is kept, so the resulting token still works for both.
+ * Google won't put drive.file and youtube.readonly on one grant, so the YouTube connect asks for
+ * youtube.readonly entirely on its own (and must NOT send include_granted_scopes, or Google would
+ * fold the existing Drive scope back in and refuse the pair). This mints a separate refresh token.
  */
-export const YOUTUBE_CONNECT_SCOPES = [...ID_SCOPES, YOUTUBE_SCOPE];
+export const YOUTUBE_CONNECT_SCOPES = [YOUTUBE_SCOPE];
 
 export const SESSION_COOKIE = "lumen_session";
 export const OAUTH_COOKIE = "lumen_oauth";
@@ -29,6 +29,7 @@ export interface Session {
   accessToken?: string;
   accessExpires?: number; // ms since epoch
   youtube?: boolean; // the user granted read access to their YouTube subscriptions and likes
+  youtubeRefreshToken?: string; // a separate grant for YouTube, kept apart from Drive (see YOUTUBE_CONNECT_SCOPES)
 }
 
 export function config() {

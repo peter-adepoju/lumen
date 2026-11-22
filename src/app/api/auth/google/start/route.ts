@@ -7,24 +7,26 @@ export async function GET(req: NextRequest) {
   if (!configured) return NextResponse.redirect(new URL("/setup?google=not-configured", req.url));
   const state = randomToken(16), verifier = randomToken(48);
   const next = safeNext(req.nextUrl.searchParams.get("next"));
-  // "?extra=youtube" asks for read access to the user's YouTube subscriptions and likes, on its own
-  // (Google won't grant it together with Drive); include_granted_scopes keeps the existing Drive access.
-  const scopes = req.nextUrl.searchParams.get("extra") === "youtube" ? YOUTUBE_CONNECT_SCOPES : SCOPES;
-  const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-  url.search = new URLSearchParams({
+  // "?extra=youtube" connects YouTube: it asks for youtube.readonly entirely on its own, as a
+  // separate grant. Google won't put youtube.readonly and Drive on one grant, so this request must
+  // NOT send include_granted_scopes (that would fold the existing Drive scope in and be refused).
+  const youtube = req.nextUrl.searchParams.get("extra") === "youtube";
+  const params: Record<string, string> = {
     client_id: clientId,
     redirect_uri: redirectUri(req.nextUrl.origin),
     response_type: "code",
-    scope: scopes.join(" "),
+    scope: (youtube ? YOUTUBE_CONNECT_SCOPES : SCOPES).join(" "),
     access_type: "offline",
     prompt: "consent",
-    include_granted_scopes: "true",
     state,
     code_challenge: await sha256b64url(verifier),
     code_challenge_method: "S256",
-  }).toString();
+  };
+  if (!youtube) params.include_granted_scopes = "true";
+  const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  url.search = new URLSearchParams(params).toString();
   const res = NextResponse.redirect(url);
-  res.cookies.set(OAUTH_COOKIE, await seal({ state, verifier, next }, secret), {
+  res.cookies.set(OAUTH_COOKIE, await seal({ state, verifier, next, youtube }, secret), {
     httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/api/auth", maxAge: 600,
   });
   return res;
